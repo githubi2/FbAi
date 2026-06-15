@@ -36,7 +36,7 @@ type CreateMenuRequest struct {
 
 // UpdateMenuRequest 更新菜单请求
 type UpdateMenuRequest struct {
-	ID        uint   `json:"id" binding:"required"`
+	ID        uint   `json:"id"`
 	ParentID  uint   `json:"parentId"`
 	Title     string `json:"title" binding:"required,min=2,max=64"`
 	Name      string `json:"name" binding:"required,min=2,max=64"`

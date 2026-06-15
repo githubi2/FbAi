@@ -25,7 +25,7 @@ type CreateRoleRequest struct {
 
 // UpdateRoleRequest 更新角色请求
 type UpdateRoleRequest struct {
-	ID          uint    `json:"id" binding:"required"`
+	ID          uint    `json:"id"`
 	RoleName    string  `json:"roleName" binding:"required,min=2,max=64"`
 	RoleCode    string  `json:"roleCode" binding:"required,min=2,max=32"`
 	Description string  `json:"description" binding:"max=256"`

@@ -32,7 +32,7 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest 更新用户请求
 type UpdateUserRequest struct {
-	ID       uint   `json:"id" binding:"required"`
+	ID       uint   `json:"id"`
 	NickName string `json:"nickName" binding:"max=64"`
 	Email    string `json:"userEmail" binding:"omitempty,email"`
 	Phone    string `json:"userPhone" binding:"max=20"`
