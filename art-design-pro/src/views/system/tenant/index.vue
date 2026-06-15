@@ -6,7 +6,7 @@
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
           <ElSpace wrap>
-            <ElButton type="primary" @click="showDialog('add')" v-ripple>新增租户</ElButton>
+            <ElButton @click="showDialog('add')" v-ripple>新增租户</ElButton>
           </ElSpace>
         </template>
       </ArtTableHeader>
