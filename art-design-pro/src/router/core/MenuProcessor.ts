@@ -83,6 +83,25 @@ export class MenuProcessor {
   }
 
   /**
+   * 菜单名称 → icon 映射（与前端 asyncRoutes 的 meta.icon 一致）
+   */
+  private readonly MENU_ICON_MAP: Record<string, string> = {
+    Dashboard: 'ri:pie-chart-line',
+    System: 'ri:user-3-line',
+    User: 'ri:user-3-line',
+    Role: 'ri:shield-user-line',
+    Menus: 'ri:menu-line',
+    UserCenter: 'ri:user-line',
+    Result: 'ri:checkbox-circle-line',
+    ResultSuccess: 'ri:checkbox-circle-line',
+    ResultFail: 'ri:close-circle-line',
+    Exception: 'ri:error-warning-line',
+    Exception403: 'ri:error-warning-line',
+    Exception404: 'ri:error-warning-line',
+    Exception500: 'ri:error-warning-line'
+  }
+
+  /**
    * 将后端 MenuTree 格式转换为 AppRouteRecord 格式
    * 后端: { id, name, path, component, title, icon, hidden, children }
    * 前端: { id, name, path, component, meta: { title, icon, isHide, isIframe }, children }
@@ -95,7 +114,7 @@ export class MenuProcessor {
       component: menu.component || '',
       meta: {
         title: this.MENU_I18N_MAP[menu.name] || menu.title || menu.name || '',
-        icon: menu.icon || '',
+        icon: this.MENU_ICON_MAP[menu.name] || menu.icon || '',
         isHide: menu.hidden || false,
         isIframe: false
       },
