@@ -54,6 +54,7 @@
   import { h, onMounted } from 'vue'
   import { useTable } from '@/hooks/core/useTable'
   import { fetchGetRoleList, fetchDeleteRole, fetchGetAllMenus } from '@/api/system-manage'
+  import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import RoleSearch from './modules/role-search.vue'
   import RoleEditDialog from './modules/role-edit-dialog.vue'
   import RolePermissionDialog from './modules/role-permission-dialog.vue'
@@ -193,37 +194,23 @@
         {
           prop: 'operation',
           label: '操作',
-          width: 240,
+          width: 160,
           fixed: 'right',
           formatter: (row) => {
-            return h('div', { class: 'flex gap-1' }, [
-              h(
-                ElButton,
-                {
-                  type: 'primary',
-                  size: 'small',
-                  onClick: () => showPermissionDialog(row)
-                },
-                () => '菜单权限'
-              ),
-              h(
-                ElButton,
-                {
-                  type: 'primary',
-                  size: 'small',
-                  onClick: () => showDialog('edit', row)
-                },
-                () => '编辑'
-              ),
-              h(
-                ElButton,
-                {
-                  type: 'danger',
-                  size: 'small',
-                  onClick: () => deleteRole(row)
-                },
-                () => '删除'
-              )
+            return h('div', { class: 'flex items-center' }, [
+              h(ArtButtonTable, {
+                type: 'view',
+                icon: 'ri:shield-keyhole-line',
+                onClick: () => showPermissionDialog(row)
+              }),
+              h(ArtButtonTable, {
+                type: 'edit',
+                onClick: () => showDialog('edit', row)
+              }),
+              h(ArtButtonTable, {
+                type: 'delete',
+                onClick: () => deleteRole(row)
+              })
             ])
           }
         }
