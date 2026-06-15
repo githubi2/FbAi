@@ -236,9 +236,7 @@
         await fetchCreateUser({
           userName: formData.userName,
           password: formData.password || '123456',
-          nickName: formData.nickName,
           userEmail: formData.userEmail,
-          userPhone: formData.userPhone,
           status: formData.status ? 1 : 0,
           roleId: formData.roleId
         })
@@ -247,9 +245,7 @@
         const userId = currentUserData.value.id
         if (userId) {
           await fetchUpdateUser(userId, {
-            nickName: formData.nickName,
             userEmail: formData.userEmail,
-            userPhone: formData.userPhone,
             status: formData.status ? 1 : 0,
             roleId: formData.roleId
           })
