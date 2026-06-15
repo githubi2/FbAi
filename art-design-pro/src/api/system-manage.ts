@@ -90,6 +90,13 @@ export function fetchGetRoleMenus(id: number) {
 
 // ==================== 菜单管理 API ====================
 
+/** 获取所有菜单列表（平铺，非角色过滤，用于权限展示） */
+export function fetchGetAllMenus() {
+  return request.get<{ id: number; title: string; name: string; menuType: string }[]>({
+    url: '/api/v1/menus'
+  })
+}
+
 /** 获取菜单树 */
 export function fetchGetMenuTree() {
   return request.get<AppRouteRecord[]>({

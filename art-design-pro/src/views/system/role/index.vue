@@ -51,8 +51,9 @@
 </template>
 
 <script setup lang="ts">
+  import { h, onMounted } from 'vue'
   import { useTable } from '@/hooks/core/useTable'
-  import { fetchGetRoleList, fetchDeleteRole } from '@/api/system-manage'
+  import { fetchGetRoleList, fetchDeleteRole, fetchGetAllMenus } from '@/api/system-manage'
   import RoleSearch from './modules/role-search.vue'
   import RoleEditDialog from './modules/role-edit-dialog.vue'
   import RolePermissionDialog from './modules/role-permission-dialog.vue'
@@ -64,6 +65,24 @@
   type RoleSearchFormParams = Api.SystemManage.RoleSearchParams & {
     daterange?: string[]
   }
+
+  // 菜单 ID → 名称映射表
+  const menuNameMap = ref<Map<number, string>>(new Map())
+
+  onMounted(async () => {
+    try {
+      const menus = await fetchGetAllMenus()
+      const map = new Map<number, string>()
+      if (Array.isArray(menus)) {
+        for (const m of menus) {
+          map.set(m.id, m.title)
+        }
+      }
+      menuNameMap.value = map
+    } catch {
+      // 静默失败，权限列将显示 ID
+    }
+  })
 
   const searchForm = ref<RoleSearchFormParams>({
     roleName: undefined,
@@ -78,6 +97,15 @@
   const dialogVisible = ref(false)
   const permissionDialog = ref(false)
   const currentRoleData = ref<RoleListItem | undefined>(undefined)
+
+  /** 日期格式化（原生 JS，无 dayjs 依赖） */
+  const formatDate = (val: string) => {
+    if (!val) return '-'
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return val
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
 
   const {
     columns,
@@ -122,17 +150,36 @@
           showOverflowTooltip: true
         },
         {
+          prop: 'menuIds',
+          label: '权限',
+          minWidth: 200,
+          formatter: (row) => {
+            const ids: number[] = row.menuIds || []
+            if (!ids.length) return h('span', { class: 'text-gray-400 text-xs' }, '暂无权限')
+            const map = menuNameMap.value
+            return h('div', { class: 'flex flex-wrap gap-1' },
+              ids.map((id: number) => {
+                const name = map.get(id) || `#${id}`
+                return h(ElTag, { size: 'small' }, () => name)
+              })
+            )
+          }
+        },
+        {
           prop: 'enabled',
           label: '角色状态',
           width: 100,
           formatter: (row) => {
-            const statusConfig = row.enabled
-              ? { type: 'success', text: '启用' }
-              : { type: 'warning', text: '禁用' }
+            const isEnabled = row.enabled
             return h(
-              ElTag,
-              { type: statusConfig.type as 'success' | 'warning' },
-              () => statusConfig.text
+              ElButton,
+              {
+                size: 'small',
+                type: isEnabled ? 'success' : 'warning',
+                plain: true,
+                disabled: true
+              },
+              () => isEnabled ? '启用' : '禁用'
             )
           }
         },
@@ -140,7 +187,8 @@
           prop: 'createTime',
           label: '创建日期',
           width: 180,
-          sortable: true
+          sortable: true,
+          formatter: (row) => formatDate(row.createTime)
         },
         {
           prop: 'operation',
@@ -148,12 +196,11 @@
           width: 240,
           fixed: 'right',
           formatter: (row) => {
-            return h('div', { class: 'flex gap-2' }, [
+            return h('div', { class: 'flex gap-1' }, [
               h(
                 ElButton,
                 {
                   type: 'primary',
-                  link: true,
                   size: 'small',
                   onClick: () => showPermissionDialog(row)
                 },
@@ -163,7 +210,6 @@
                 ElButton,
                 {
                   type: 'primary',
-                  link: true,
                   size: 'small',
                   onClick: () => showDialog('edit', row)
                 },
@@ -173,7 +219,6 @@
                 ElButton,
                 {
                   type: 'danger',
-                  link: true,
                   size: 'small',
                   onClick: () => deleteRole(row)
                 },
