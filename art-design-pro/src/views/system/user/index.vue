@@ -98,23 +98,23 @@
       },
       columnsFactory: () => [
         { type: 'selection' },
-        { type: 'index', width: 60, label: '序号' },
+        { type: 'index', width: 55, label: '序号' },
         {
           prop: 'nickName',
           label: '用户名',
-          width: 160,
+          minWidth: 120,
           formatter: (row) => row.nickName || row.userName || ''
         },
         {
           prop: 'userName',
           label: '账号',
-          width: 140,
+          minWidth: 100,
           formatter: (row) => row.userName || ''
         },
         {
           prop: 'roleName',
           label: '角色',
-          width: 120,
+          minWidth: 100,
           formatter: (row) => {
             const roleName = row.roleName || (row.userRoles?.[0]) || '—'
             return h(ElTag, { type: 'primary' }, () => roleName)
@@ -123,7 +123,7 @@
         {
           prop: 'status',
           label: '状态',
-          width: 100,
+          minWidth: 90,
           formatter: (row) => {
             const statusNum = typeof row.status === 'number' ? row.status : parseInt(row.status) || 0
             const statusConfig = getUserStatusConfig(statusNum)
@@ -133,7 +133,7 @@
         {
           prop: 'createTime',
           label: '创建时间',
-          width: 180,
+          minWidth: 140,
           sortable: true
         },
         {
