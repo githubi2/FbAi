@@ -97,10 +97,10 @@ export function fetchGetMenuTree() {
   })
 }
 
-/** 获取菜单列表（平铺） */
+/** 获取菜单列表（按当前用户角色过滤，用于侧边栏渲染） */
 export function fetchGetMenuList() {
   return request.get<any[]>({
-    url: '/api/v1/menus'
+    url: '/api/v1/auth/menus'
   })
 }
 
