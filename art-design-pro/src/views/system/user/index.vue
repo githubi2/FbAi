@@ -39,7 +39,6 @@
 
 <script setup lang="ts">
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
-  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData'
   import { useTable } from '@/hooks/core/useTable'
   import {
     fetchGetUserList,
@@ -49,7 +48,7 @@
   } from '@/api/system-manage'
   import UserSearch from './modules/user-search.vue'
   import UserDialog from './modules/user-dialog.vue'
-  import { ElTag, ElMessageBox, ElImage, ElMessage } from 'element-plus'
+  import { ElTag, ElMessageBox, ElMessage } from 'element-plus'
   import { DialogType } from '@/types'
 
   defineOptions({ name: 'User' })
@@ -67,27 +66,14 @@
   // 搜索表单
   const searchForm = ref({
     userName: undefined,
-    userGender: undefined,
-    userPhone: undefined,
-    userEmail: undefined,
-    status: '1'
+    status: undefined
   })
 
-  // 用户状态配置
-  const USER_STATUS_CONFIG = {
-    '1': { type: 'success' as const, text: '在线' },
-    '2': { type: 'info' as const, text: '离线' },
-    '3': { type: 'warning' as const, text: '异常' },
-    '4': { type: 'danger' as const, text: '注销' }
-  } as const
-
-  const getUserStatusConfig = (status: string) => {
-    return (
-      USER_STATUS_CONFIG[status as keyof typeof USER_STATUS_CONFIG] || {
-        type: 'info' as const,
-        text: '未知'
-      }
-    )
+  // 用户状态配置（1:启用 0:禁用）
+  const getUserStatusConfig = (status: number) => {
+    return status === 1
+      ? { type: 'success' as const, text: '启用' }
+      : { type: 'danger' as const, text: '禁用' }
   }
 
   const {
@@ -114,42 +100,40 @@
         { type: 'selection' },
         { type: 'index', width: 60, label: '序号' },
         {
-          prop: 'userInfo',
+          prop: 'nickName',
           label: '用户名',
-          width: 280,
+          width: 160,
+          formatter: (row) => row.nickName || row.userName || ''
+        },
+        {
+          prop: 'userName',
+          label: '账号',
+          width: 140,
+          formatter: (row) => row.userName || ''
+        },
+        {
+          prop: 'roleName',
+          label: '角色',
+          width: 120,
           formatter: (row) => {
-            return h('div', { class: 'user flex-c' }, [
-              h(ElImage, {
-                class: 'size-9.5 rounded-md',
-                src: row.avatar,
-                previewSrcList: [row.avatar],
-                previewTeleported: true
-              }),
-              h('div', { class: 'ml-2' }, [
-                h('p', { class: 'user-name' }, row.userName),
-                h('p', { class: 'email' }, row.userEmail)
-              ])
-            ])
+            const roleName = row.roleName || (row.userRoles?.[0]) || '—'
+            return h(ElTag, { type: 'primary' }, () => roleName)
           }
         },
         {
-          prop: 'userGender',
-          label: '性别',
-          sortable: true,
-          formatter: (row) => row.userGender
-        },
-        { prop: 'userPhone', label: '手机号' },
-        {
           prop: 'status',
           label: '状态',
+          width: 100,
           formatter: (row) => {
-            const statusConfig = getUserStatusConfig(String(row.status || '1'))
+            const statusNum = typeof row.status === 'number' ? row.status : parseInt(row.status) || 0
+            const statusConfig = getUserStatusConfig(statusNum)
             return h(ElTag, { type: statusConfig.type }, () => statusConfig.text)
           }
         },
         {
           prop: 'createTime',
-          label: '创建日期',
+          label: '创建时间',
+          width: 180,
           sortable: true
         },
         {
@@ -177,20 +161,17 @@
           return []
         }
 
-        return records.map((item: any, index: number) => {
+        return records.map((item: any) => {
           return {
             ...item,
             // 后端返回字段映射
             userName: item.userName || item.username || '',
             nickName: item.nickName || '',
-            userEmail: item.userEmail || item.email || '',
-            userPhone: item.userPhone || item.phone || '',
-            userGender: item.userGender || '',
-            userRoles: item.userRoles || (item.roleName ? [item.roleName] : []),
-            status: String(item.status || '1'),
+            roleName: item.roleName || (item.userRoles?.[0]) || '',
+            roleId: item.roleId || item.role_id,
+            status: Number(item.status),
             createTime: item.createTime || '',
-            updateTime: item.updateTime || '',
-            avatar: ACCOUNT_TABLE_DATA[index % ACCOUNT_TABLE_DATA.length].avatar
+            updateTime: item.updateTime || ''
           }
         })
       }
@@ -236,7 +217,6 @@
         await fetchCreateUser({
           userName: formData.userName,
           password: formData.password || '123456',
-          userEmail: formData.userEmail,
           status: formData.status ? 1 : 0,
           roleId: formData.roleId
         })
@@ -245,7 +225,6 @@
         const userId = currentUserData.value.id
         if (userId) {
           await fetchUpdateUser(userId, {
-            userEmail: formData.userEmail,
             status: formData.status ? 1 : 0,
             roleId: formData.roleId
           })

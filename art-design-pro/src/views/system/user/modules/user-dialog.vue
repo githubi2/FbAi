@@ -22,15 +22,6 @@
           />
         </ElSelect>
       </ElFormItem>
-      <ElFormItem label="性别" prop="userGender">
-        <ElSelect v-model="formData.userGender">
-          <ElOption label="男" value="男" />
-          <ElOption label="女" value="女" />
-        </ElSelect>
-      </ElFormItem>
-      <ElFormItem label="邮箱" prop="userEmail">
-        <ElInput v-model="formData.userEmail" placeholder="请输入邮箱" />
-      </ElFormItem>
       <ElFormItem label="状态" prop="status">
         <ElSwitch v-model="formData.status" active-text="启用" inactive-text="禁用" />
       </ElFormItem>
@@ -78,8 +69,6 @@
     userName: '',
     password: '',
     roleId: undefined as number | undefined,
-    userGender: '男',
-    userEmail: '',
     status: true
   })
 
@@ -127,8 +116,6 @@
       userName: isEdit && row ? row.userName || '' : '',
       password: '',
       roleId: isEdit && row ? (row.roleId || row.role_id) : undefined,
-      userGender: isEdit && row ? row.userGender || '男' : '男',
-      userEmail: isEdit && row ? row.userEmail || row.email || '' : '',
       status: isEdit && row ? (row.status === 1 || row.status === '1' || row.status === true) : true
     })
   }
