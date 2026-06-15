@@ -12,9 +12,8 @@
         ref="treeRef"
         :data="processedMenuList"
         show-checkbox
-        node-key="name"
+        node-key="id"
         :default-expand-all="isExpandAll"
-        :default-checked-keys="[1, 2, 3]"
         :props="defaultProps"
         @check="handleTreeCheck"
       >
@@ -43,6 +42,7 @@
 <script setup lang="ts">
   import { useMenuStore } from '@/store/modules/menu'
   import { formatMenuTitle } from '@/utils/router'
+  import { fetchGetRoleMenus, fetchUpdateRole } from '@/api/system-manage'
 
   type RoleListItem = Api.SystemManage.RoleListItem
 
@@ -137,14 +137,21 @@
   }
 
   /**
-   * 监听弹窗打开，初始化权限数据
+   * 监听弹窗打开，从后端加载角色的菜单权限数据
    */
   watch(
     () => props.modelValue,
-    (newVal) => {
-      if (newVal && props.roleData) {
-        // TODO: 根据角色加载对应的权限数据
-        console.log('设置权限:', props.roleData)
+    async (newVal) => {
+      if (newVal && props.roleData?.roleId) {
+        try {
+          const res = await fetchGetRoleMenus(props.roleData.roleId)
+          const roleMenus: number[] = res.roleMenus || []
+          await nextTick()
+          treeRef.value?.setCheckedKeys(roleMenus)
+        } catch (error) {
+          console.error('加载角色菜单权限失败:', error)
+          ElMessage.error('加载菜单权限失败')
+        }
       }
     }
   )
@@ -155,16 +162,40 @@
   const handleClose = () => {
     visible.value = false
     treeRef.value?.setCheckedKeys([])
+    isSelectAll.value = false
   }
 
   /**
    * 保存权限配置
    */
-  const savePermission = () => {
-    // TODO: 调用保存权限接口
-    ElMessage.success('权限保存成功')
-    emit('success')
-    handleClose()
+  const savePermission = async () => {
+    const tree = treeRef.value
+    if (!tree) return
+
+    if (!props.roleData?.roleId) {
+      ElMessage.error('角色数据异常')
+      return
+    }
+
+    const checkedKeys = tree.getCheckedKeys()
+    // 只保留数字类型的 key（实际菜单 ID），过滤掉 auth 子节点（字符串 key）
+    const menuIds: number[] = checkedKeys.filter((k: any) => typeof k === 'number').map(Number)
+
+    try {
+      await fetchUpdateRole(props.roleData.roleId, {
+        roleName: props.roleData.roleName,
+        roleCode: props.roleData.roleCode,
+        description: props.roleData.description,
+        status: props.roleData.enabled ? 1 : 0,
+        menuIds
+      })
+      ElMessage.success('权限保存成功')
+      emit('success')
+      handleClose()
+    } catch (error) {
+      console.error('保存权限失败:', error)
+      ElMessage.error('保存权限失败')
+    }
   }
 
   /**
@@ -201,15 +232,15 @@
   }
 
   /**
-   * 递归获取所有节点的 key
+   * 递归获取所有节点的 key (id)
    * @param nodes 节点列表
    * @returns 所有节点的 key 数组
    */
-  const getAllNodeKeys = (nodes: MenuNode[]): string[] => {
-    const keys: string[] = []
+  const getAllNodeKeys = (nodes: MenuNode[]): (string | number)[] => {
+    const keys: (string | number)[] = []
     const traverse = (nodeList: MenuNode[]): void => {
       nodeList.forEach((node) => {
-        if (node.name) keys.push(node.name)
+        if (node.id !== undefined && node.id !== null) keys.push(node.id)
         if (node.children?.length) traverse(node.children)
       })
     }
