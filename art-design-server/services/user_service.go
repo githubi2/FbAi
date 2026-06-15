@@ -31,7 +31,7 @@ func (s *UserService) List(page, size int, keyword string) ([]models.User, int64
 	// 分页查询
 	offset := (page - 1) * size
 	querySQL := `
-		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at
+		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, tenant_id, created_at, updated_at
 		FROM users
 		WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%')
 		ORDER BY id ASC
@@ -47,7 +47,7 @@ func (s *UserService) List(page, size int, keyword string) ([]models.User, int64
 	for rows.Next() {
 		var u models.User
 		if err := rows.Scan(&u.ID, &u.UserName, &u.NickName, &u.Email, &u.Phone,
-			&u.Avatar, &u.Status, &u.RoleID, &u.RoleName, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			&u.Avatar, &u.Status, &u.RoleID, &u.RoleName, &u.TenantID, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			continue
 		}
 		u.Password = "" // 不返回密码
@@ -68,13 +68,13 @@ func (s *UserService) GetByID(id uint) (*models.User, error) {
 
 	ctx := context.Background()
 	querySQL := `
-		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at
+		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, tenant_id, created_at, updated_at
 		FROM users WHERE id = $1
 	`
 	var u models.User
 	err := db.Pool.QueryRow(ctx, querySQL, id).Scan(
 		&u.ID, &u.UserName, &u.NickName, &u.Email, &u.Phone,
-		&u.Avatar, &u.Status, &u.RoleID, &u.RoleName, &u.CreatedAt, &u.UpdatedAt,
+		&u.Avatar, &u.Status, &u.RoleID, &u.RoleName, &u.TenantID, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		return nil, errors.New("用户不存在")
@@ -108,14 +108,14 @@ func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error)
 	}
 
 	querySQL := `
-		INSERT INTO users (user_name, password, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO users (user_name, password, nick_name, email, phone, avatar, status, role_id, role_name, tenant_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id
 	`
 	var id uint
 	err = db.Pool.QueryRow(ctx, querySQL,
 		req.UserName, hashedPassword, req.NickName, req.Email, req.Phone,
-		req.Avatar, req.Status, req.RoleID, roleName, now, now,
+		req.Avatar, req.Status, req.RoleID, roleName, req.TenantID, now, now,
 	).Scan(&id)
 	if err != nil {
 		return nil, errors.New("创建用户失败: " + err.Error())
@@ -131,6 +131,7 @@ func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error)
 		Status:    req.Status,
 		RoleID:    req.RoleID,
 		RoleName:  roleName,
+		TenantID:  req.TenantID,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
@@ -219,23 +220,24 @@ func (s *UserService) GetAuthInfo(userName string) (uint, string, string, bool, 
 	return id, password, roleName, status == 1, nil
 }
 
-// GetPasswordHash 获取用户密码哈希（用于登录验证）
-func (s *UserService) GetPasswordHash(userName string) (uint, string, string, error) {
+// GetPasswordHash 获取用户密码哈希（用于登录验证），同时返回 tenant_id
+func (s *UserService) GetPasswordHash(userName string) (uint, string, string, *uint, error) {
 	if db.Pool == nil {
-		return 0, "", "", errors.New("数据库未连接")
+		return 0, "", "", nil, errors.New("数据库未连接")
 	}
 
 	ctx := context.Background()
-	querySQL := `SELECT id, password, role_name FROM users WHERE user_name = $1 AND status = 1`
+	querySQL := `SELECT id, password, role_name, tenant_id FROM users WHERE user_name = $1 AND status = 1`
 
 	var id uint
 	var password, roleName string
-	err := db.Pool.QueryRow(ctx, querySQL, userName).Scan(&id, &password, &roleName)
+	var tenantID *uint
+	err := db.Pool.QueryRow(ctx, querySQL, userName).Scan(&id, &password, &roleName, &tenantID)
 	if err != nil {
-		return 0, "", "", errors.New("用户不存在或已被禁用")
+		return 0, "", "", nil, errors.New("用户不存在或已被禁用")
 	}
 
-	return id, password, roleName, nil
+	return id, password, roleName, tenantID, nil
 }
 
 // --- 内存 fallback（数据库不可用时使用）---

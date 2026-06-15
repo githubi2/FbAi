@@ -1,0 +1,20 @@
+INSERT INTO permissions (code, name, module, action, description) VALUES
+('system:user:list',     '查看用户列表',   'system', 'list',   '查看用户列表权限'),
+('system:user:create',   '创建用户',       'system', 'create', '创建用户权限'),
+('system:user:edit',     '编辑用户',       'system', 'edit',   '编辑用户权限'),
+('system:user:delete',   '删除用户',       'system', 'delete', '删除用户权限'),
+('system:role:list',     '查看角色列表',   'system', 'list',   '查看角色列表权限'),
+('system:role:create',   '创建角色',       'system', 'create', '创建角色权限'),
+('system:role:edit',     '编辑角色',       'system', 'edit',   '编辑角色权限'),
+('system:role:delete',   '删除角色',       'system', 'delete', '删除角色权限'),
+('system:menu:list',     '查看菜单列表',   'system', 'list',   '查看菜单列表权限'),
+('system:menu:create',   '创建菜单',       'system', 'create', '创建菜单权限'),
+('system:menu:edit',     '编辑菜单',       'system', 'edit',   '编辑菜单权限'),
+('system:menu:delete',   '删除菜单',       'system', 'delete', '删除菜单权限'),
+('system:tenant:list',   '查看租户列表',   'system', 'list',   '查看租户列表权限'),
+('system:tenant:create', '创建租户',       'system', 'create', '创建租户权限'),
+('system:tenant:edit',   '编辑租户',       'system', 'edit',   '编辑租户权限'),
+('system:tenant:delete', '删除租户',       'system', 'delete', '删除租户权限'),
+('dashboard:view',       '查看仪表盘',     'dashboard', 'view',   '查看仪表盘权限'),
+('dashboard:export',     '导出报表',       'dashboard', 'export', '导出报表权限')
+ON CONFLICT (code) DO NOTHING;

@@ -156,6 +156,7 @@
         />
 
         <!-- 用户头像、菜单 -->
+        <TenantSwitcher />
         <ArtUserMenu />
       </div>
     </div>
@@ -183,6 +184,7 @@
   import { useCommon } from '@/hooks/core/useCommon'
   import { useHeaderBar } from '@/hooks/core/useHeaderBar'
   import ArtUserMenu from './widget/ArtUserMenu.vue'
+  import TenantSwitcher from '@/components/common/TenantSwitcher.vue'
 
   defineOptions({ name: 'ArtHeaderBar' })
 

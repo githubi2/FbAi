@@ -148,4 +148,61 @@ declare namespace Api {
       menuIds?: number[]
     }
   }
+
+  /** 租户类型 */
+  namespace Tenant {
+    /** 租户列表项 */
+    interface TenantListItem {
+      id: number
+      name: string
+      code: string
+      status: number
+      contactName: string
+      contactPhone: string
+      contactEmail: string
+      description: string
+      createTime: string
+      updateTime: string
+    }
+
+    /** 创建租户参数 */
+    interface CreateTenantParams {
+      name: string
+      code: string
+      contactName?: string
+      contactPhone?: string
+      contactEmail?: string
+      description?: string
+      adminUserName: string
+      adminPassword: string
+      adminNickName?: string
+    }
+
+    /** 创建租户响应 */
+    interface CreateTenantResponse {
+      tenant: TenantListItem
+      adminUser: {
+        id: number
+        userName: string
+        nickName: string
+      }
+    }
+
+    /** 更新租户参数 */
+    interface UpdateTenantParams {
+      id: number
+      name: string
+      contactName?: string
+      contactPhone?: string
+      contactEmail?: string
+      description?: string
+      status?: number
+    }
+
+    /** 租户上下文 */
+    interface TenantContext {
+      tenantId: number | null
+      tenantName: string
+    }
+  }
 }

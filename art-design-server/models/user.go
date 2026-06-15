@@ -14,6 +14,7 @@ type User struct {
 	Status    int       `json:"status" gorm:"default:1"` // 1:启用 0:禁用
 	RoleID    uint      `json:"roleId" gorm:"column:role_id;default:0"`
 	RoleName  string    `json:"roleName" gorm:"column:role_name;size:64"`
+	TenantID  *uint     `json:"tenantId" gorm:"column:tenant_id"` // NULL=全局管理员
 	CreatedAt time.Time `json:"createTime" gorm:"column:created_at"`
 	UpdatedAt time.Time `json:"updateTime" gorm:"column:updated_at"`
 }
@@ -28,6 +29,7 @@ type CreateUserRequest struct {
 	Avatar   string `json:"avatar" binding:"max=256"`
 	Status   int    `json:"status"`
 	RoleID   uint   `json:"roleId"`
+	TenantID *uint  `json:"tenantId"`
 }
 
 // UpdateUserRequest 更新用户请求
@@ -64,10 +66,13 @@ type ChangePasswordRequest struct {
 
 // UserInfoResponse 用户信息响应（匹配前端 Api.Auth.UserInfo 类型）
 type UserInfoResponse struct {
-	Buttons  []string `json:"buttons"`
-	Roles    []string `json:"roles"`
-	UserID   uint     `json:"userId"`
-	UserName string   `json:"userName"`
-	Email    string   `json:"email"`
-	Avatar   string   `json:"avatar,omitempty"`
+	Buttons    []string `json:"buttons"`
+	Roles      []string `json:"roles"`
+	UserID     uint     `json:"userId"`
+	UserName   string   `json:"userName"`
+	Email      string   `json:"email"`
+	Avatar     string   `json:"avatar,omitempty"`
+	Permissions []string `json:"permissions"`           // 权限点编码列表
+	TenantID    *uint    `json:"tenantId"`              // 当前租户ID (NULL=全局)
+	TenantName  string   `json:"tenantName"`            // 当前租户名称
 }

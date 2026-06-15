@@ -12,34 +12,35 @@ import (
 )
 
 // ValidateUser 验证用户名密码（使用 PostgreSQL）
-func ValidateUser(userName, password string) (uint, string, bool) {
-	userID, hashedPassword, role, err := services.DefaultUserService.GetPasswordHash(userName)
+func ValidateUser(userName, password string) (uint, string, *uint, bool) {
+	userID, hashedPassword, role, tenantID, err := services.DefaultUserService.GetPasswordHash(userName)
 	if err != nil {
-		return 0, "", false
+		return 0, "", nil, false
 	}
 
 	if !crypto.CheckPassword(hashedPassword, password) {
-		return 0, "", false
+		return 0, "", nil, false
 	}
 
-	return userID, role, true
+	return userID, role, tenantID, true
 }
 
 // GenerateToken 生成 token 并存入数据库 sessions 表
 // rememberMe: true=3天过期, false=24小时过期
-func GenerateToken(userID uint, rememberMe bool) string {
+// tenantID: 租户上下文。nil=全局管理员视角
+func GenerateToken(userID uint, rememberMe bool, tenantID *uint) string {
 	token := fmt.Sprintf("token_%d_art-design-%d", userID, time.Now().UnixNano())
 	refreshToken := fmt.Sprintf("refresh_%d_art-design-%d", userID, time.Now().UnixNano()+1)
 
 	var expiresAt time.Time
 	if rememberMe {
-		expiresAt = time.Now().Add(72 * time.Hour) // 记住密码：3天
+		expiresAt = time.Now().Add(72 * time.Hour)
 	} else {
-		expiresAt = time.Now().Add(24 * time.Hour) // 不记住：24小时
+		expiresAt = time.Now().Add(24 * time.Hour)
 	}
 
-	// SSO 单点登录：Create 内部会先删除该用户所有旧会话
-	_ = services.DefaultSessionService.Create(userID, token, refreshToken, expiresAt)
+	// SSO 单点登录：仅管理员 tenantID=nil 时踢旧会话
+	_ = services.DefaultSessionService.Create(userID, token, refreshToken, expiresAt, tenantID)
 
 	return token
 }

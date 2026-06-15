@@ -25,17 +25,10 @@ func SetupRouter() *gin.Engine {
 
 	// ==================== 向后兼容路由（前端旧 API 路径） ====================
 
-	// 前端 fetchGetUserInfo() 直接调用（不在 /api/v1 组下）
-	r.GET("/api/user/info", middleware.AuthRequired(), handlers.DefaultAuthHandler.GetUserInfoHandler)
-
-	// 旧版用户列表（兼容前端 fetchGetUserList）
-	r.GET("/api/user/list", middleware.AuthRequired(), handlers.DefaultUserHandler.List)
-
-	// 旧版角色列表（兼容前端 fetchGetRoleList）
-	r.GET("/api/role/list", middleware.AuthRequired(), handlers.DefaultRoleHandler.List)
-
-	// 旧版菜单（兼容前端 fetchGetMenuList -> /api/v3/system/menus/simple）
-	r.GET("/api/v3/system/menus/simple", middleware.AuthRequired(), handlers.DefaultMenuHandler.Tree)
+	r.GET("/api/user/info", middleware.AuthRequired(), middleware.TenantContext(), handlers.DefaultAuthHandler.GetUserInfoHandler)
+	r.GET("/api/user/list", middleware.AuthRequired(), middleware.TenantContext(), handlers.DefaultUserHandler.List)
+	r.GET("/api/role/list", middleware.AuthRequired(), middleware.TenantContext(), handlers.DefaultRoleHandler.List)
+	r.GET("/api/v3/system/menus/simple", middleware.AuthRequired(), middleware.TenantContext(), handlers.DefaultMenuHandler.Tree)
 
 	// ==================== API v1 路由组 ====================
 	v1 := r.Group("/api/v1")
@@ -49,42 +42,60 @@ func SetupRouter() *gin.Engine {
 		// 需要登录的接口
 		authorized := v1.Group("")
 		authorized.Use(middleware.AuthRequired())
+		authorized.Use(middleware.TenantContext())
 		{
-			// 用户信息
+			// 用户信息（无需额外权限）
 			authorized.GET("/auth/userinfo", handlers.DefaultAuthHandler.UserInfo)
 			authorized.GET("/auth/menus", handlers.DefaultAuthHandler.GetMenus)
 
-			// 用户管理
+			// 租户切换 & 当前租户
+			authorized.POST("/tenants/switch", handlers.DefaultTenantHandler.Switch)
+			authorized.GET("/tenants/current", handlers.DefaultTenantHandler.Current)
+
+			// 权限点列表
+			authorized.GET("/permissions", handlers.DefaultTenantHandler.Permissions)
+
+			// ==================== 租户管理（超级管理员） ====================
+			tenants := authorized.Group("/tenants")
+			{
+				tenants.GET("", middleware.RequirePermission("system:tenant:list"), handlers.DefaultTenantHandler.List)
+				tenants.GET("/:id", middleware.RequirePermission("system:tenant:list"), handlers.DefaultTenantHandler.GetByID)
+				tenants.POST("", middleware.RequirePermission("system:tenant:create"), handlers.DefaultTenantHandler.Create)
+				tenants.PUT("/:id", middleware.RequirePermission("system:tenant:edit"), handlers.DefaultTenantHandler.Update)
+				tenants.DELETE("/:id", middleware.RequirePermission("system:tenant:delete"), handlers.DefaultTenantHandler.Delete)
+			}
+
+			// ==================== 用户管理 ====================
 			users := authorized.Group("/users")
 			{
-				users.GET("", handlers.DefaultUserHandler.List)
-				users.GET("/:id", handlers.DefaultUserHandler.GetByID)
-				users.POST("", handlers.DefaultUserHandler.Create)
-				users.PUT("/:id", handlers.DefaultUserHandler.Update)
-				users.DELETE("/:id", handlers.DefaultUserHandler.Delete)
-				users.POST("/batch-delete", handlers.DefaultUserHandler.BatchDelete)
+				users.GET("", middleware.RequirePermission("system:user:list"), handlers.DefaultUserHandler.List)
+				users.GET("/:id", middleware.RequirePermission("system:user:list"), handlers.DefaultUserHandler.GetByID)
+				users.POST("", middleware.RequirePermission("system:user:create"), handlers.DefaultUserHandler.Create)
+				users.PUT("/:id", middleware.RequirePermission("system:user:edit"), handlers.DefaultUserHandler.Update)
+				users.DELETE("/:id", middleware.RequirePermission("system:user:delete"), handlers.DefaultUserHandler.Delete)
+				users.POST("/batch-delete", middleware.RequirePermission("system:user:delete"), handlers.DefaultUserHandler.BatchDelete)
 			}
 
-			// 角色管理
+			// ==================== 角色管理 ====================
 			roles := authorized.Group("/roles")
 			{
-				roles.GET("", handlers.DefaultRoleHandler.List)
-				roles.GET("/:id", handlers.DefaultRoleHandler.GetByID)
-				roles.GET("/:id/menus", handlers.DefaultRoleHandler.GetMenus)
-				roles.POST("", handlers.DefaultRoleHandler.Create)
-				roles.PUT("/:id", handlers.DefaultRoleHandler.Update)
-				roles.DELETE("/:id", handlers.DefaultRoleHandler.Delete)
+				roles.GET("", middleware.RequirePermission("system:role:list"), handlers.DefaultRoleHandler.List)
+				roles.GET("/:id", middleware.RequirePermission("system:role:list"), handlers.DefaultRoleHandler.GetByID)
+				roles.GET("/:id/menus", middleware.RequirePermission("system:role:list"), handlers.DefaultRoleHandler.GetMenus)
+				roles.POST("", middleware.RequirePermission("system:role:create"), handlers.DefaultRoleHandler.Create)
+				roles.PUT("/:id", middleware.RequirePermission("system:role:edit"), handlers.DefaultRoleHandler.Update)
+				roles.DELETE("/:id", middleware.RequirePermission("system:role:delete"), handlers.DefaultRoleHandler.Delete)
 			}
 
-			// 菜单管理
+			// ==================== 菜单管理 ====================
 			menus := authorized.Group("/menus")
 			{
-				menus.GET("", handlers.DefaultMenuHandler.List)
-				menus.GET("/tree", handlers.DefaultMenuHandler.Tree)
-				menus.GET("/:id", handlers.DefaultMenuHandler.GetByID)
-				menus.POST("", handlers.DefaultMenuHandler.Create)
-				menus.PUT("/:id", handlers.DefaultMenuHandler.Update)
-				menus.DELETE("/:id", handlers.DefaultMenuHandler.Delete)
+				menus.GET("", middleware.RequirePermission("system:menu:list"), handlers.DefaultMenuHandler.List)
+				menus.GET("/tree", middleware.RequirePermission("system:menu:list"), handlers.DefaultMenuHandler.Tree)
+				menus.GET("/:id", middleware.RequirePermission("system:menu:list"), handlers.DefaultMenuHandler.GetByID)
+				menus.POST("", middleware.RequirePermission("system:menu:create"), handlers.DefaultMenuHandler.Create)
+				menus.PUT("/:id", middleware.RequirePermission("system:menu:edit"), handlers.DefaultMenuHandler.Update)
+				menus.DELETE("/:id", middleware.RequirePermission("system:menu:delete"), handlers.DefaultMenuHandler.Delete)
 			}
 		}
 	}

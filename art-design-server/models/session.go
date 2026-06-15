@@ -8,6 +8,7 @@ type Session struct {
 	UserID       uint      `json:"userId"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refreshToken,omitempty"`
+	TenantID     *uint     `json:"tenantId"`   // 当前租户上下文 (NULL=全局视角)
 	ExpiresAt    time.Time `json:"expiresAt"`
 	CreatedAt    time.Time `json:"createdAt"`
 }

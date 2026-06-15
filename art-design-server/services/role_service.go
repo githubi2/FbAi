@@ -22,7 +22,7 @@ func (s *RoleService) List() []models.Role {
 	}
 
 	ctx := context.Background()
-	querySQL := `SELECT id, role_name, role_code, description, menu_ids, status, created_at, updated_at 
+	querySQL := `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
 		FROM roles ORDER BY id ASC`
 
 	rows, err := db.Pool.Query(ctx, querySQL)
@@ -35,7 +35,7 @@ func (s *RoleService) List() []models.Role {
 	for rows.Next() {
 		var r models.Role
 		if err := rows.Scan(&r.ID, &r.RoleName, &r.RoleCode, &r.Description,
-			&r.MenuIDs, &r.Status, &r.CreatedAt, &r.UpdatedAt); err != nil {
+			&r.MenuIDs, &r.Status, &r.TenantID, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			continue
 		}
 		roles = append(roles, r)
@@ -53,13 +53,13 @@ func (s *RoleService) GetByID(id uint) (*models.Role, error) {
 	}
 
 	ctx := context.Background()
-	querySQL := `SELECT id, role_name, role_code, description, menu_ids, status, created_at, updated_at 
+	querySQL := `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
 		FROM roles WHERE id = $1`
 
 	var r models.Role
 	err := db.Pool.QueryRow(ctx, querySQL, id).Scan(
 		&r.ID, &r.RoleName, &r.RoleCode, &r.Description,
-		&r.MenuIDs, &r.Status, &r.CreatedAt, &r.UpdatedAt,
+		&r.MenuIDs, &r.Status, &r.TenantID, &r.CreatedAt, &r.UpdatedAt,
 	)
 	if err != nil {
 		return nil, errors.New("角色不存在")
@@ -109,15 +109,25 @@ func (s *RoleService) Create(req models.CreateRoleRequest) (*models.Role, error)
 		menuIDs = []int64{}
 	}
 
-	querySQL := `INSERT INTO roles (role_name, role_code, description, menu_ids, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+	querySQL := `INSERT INTO roles (role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 
 	var id uint
 	err := db.Pool.QueryRow(ctx, querySQL,
-		req.RoleName, req.RoleCode, req.Description, menuIDs, req.Status, now, now,
+		req.RoleName, req.RoleCode, req.Description, menuIDs, req.Status, req.TenantID, now, now,
 	).Scan(&id)
 	if err != nil {
 		return nil, errors.New("创建角色失败: " + err.Error())
+	}
+
+	// 处理权限关联
+	if len(req.PermissionIDs) > 0 {
+		for _, permID := range req.PermissionIDs {
+			_, _ = db.Pool.Exec(ctx,
+				`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+				id, permID,
+			)
+		}
 	}
 
 	return &models.Role{
@@ -127,6 +137,7 @@ func (s *RoleService) Create(req models.CreateRoleRequest) (*models.Role, error)
 		Description: req.Description,
 		MenuIDs:     menuIDs,
 		Status:      req.Status,
+		TenantID:    req.TenantID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}, nil
@@ -163,6 +174,17 @@ func (s *RoleService) Update(req models.UpdateRoleRequest) (*models.Role, error)
 			return nil, errors.New("角色编码已存在")
 		}
 		return nil, errors.New("更新角色失败")
+	}
+
+	// 更新权限关联（先删后插）
+	if req.PermissionIDs != nil {
+		_, _ = db.Pool.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, req.ID)
+		for _, permID := range req.PermissionIDs {
+			_, _ = db.Pool.Exec(ctx,
+				`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+				req.ID, permID,
+			)
+		}
 	}
 
 	return s.GetByID(req.ID)

@@ -10,25 +10,29 @@ type Role struct {
 	Description string    `json:"description" gorm:"column:description;size:256"`
 	MenuIDs     []int64   `json:"menuIds" gorm:"column:menu_ids;type:integer[]"`
 	Status      int       `json:"status" gorm:"default:1"`
+	TenantID    *uint     `json:"tenantId" gorm:"column:tenant_id"` // NULL=全局角色
 	CreatedAt   time.Time `json:"createTime" gorm:"column:created_at"`
 	UpdatedAt   time.Time `json:"updateTime" gorm:"column:updated_at"`
 }
 
 // CreateRoleRequest 创建角色请求
 type CreateRoleRequest struct {
-	RoleName    string  `json:"roleName" binding:"required,min=2,max=64"`
-	RoleCode    string  `json:"roleCode" binding:"required,min=2,max=32"`
-	Description string  `json:"description" binding:"max=256"`
-	Status      int     `json:"status"`
-	MenuIDs     []int64 `json:"menuIds"`
+	RoleName      string  `json:"roleName" binding:"required,min=2,max=64"`
+	RoleCode      string  `json:"roleCode" binding:"required,min=2,max=32"`
+	Description   string  `json:"description" binding:"max=256"`
+	Status        int     `json:"status"`
+	MenuIDs       []int64 `json:"menuIds"`
+	PermissionIDs []uint  `json:"permissionIds"`
+	TenantID      *uint   `json:"tenantId"`
 }
 
 // UpdateRoleRequest 更新角色请求
 type UpdateRoleRequest struct {
-	ID          uint    `json:"id"`
-	RoleName    string  `json:"roleName" binding:"required,min=2,max=64"`
-	RoleCode    string  `json:"roleCode" binding:"required,min=2,max=32"`
-	Description string  `json:"description" binding:"max=256"`
-	Status      int     `json:"status"`
-	MenuIDs     []int64 `json:"menuIds"`
+	ID            uint    `json:"id"`
+	RoleName      string  `json:"roleName" binding:"required,min=2,max=64"`
+	RoleCode      string  `json:"roleCode" binding:"required,min=2,max=32"`
+	Description   string  `json:"description" binding:"max=256"`
+	Status        int     `json:"status"`
+	MenuIDs       []int64 `json:"menuIds"`
+	PermissionIDs []uint  `json:"permissionIds"`
 }

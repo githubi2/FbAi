@@ -236,6 +236,7 @@ func (s *MenuService) listFallback() []models.Menu {
 		{ID: 5, ParentID: 3, Title: "角色管理", Name: "Role", Path: "role", Component: "/system/role", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 6, ParentID: 3, Title: "菜单管理", Name: "Menus", Path: "menu", Component: "/system/menu", SortOrder: 3, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 7, ParentID: 3, Title: "个人中心", Name: "UserCenter", Path: "user-center", Component: "/system/user-center", SortOrder: 4, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 15, ParentID: 3, Title: "租户管理", Name: "Tenant", Path: "tenant", Component: "/system/tenant", Icon: "building", SortOrder: 5, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 8, ParentID: 0, Title: "结果页", Name: "Result", Path: "/result", Component: "/index/index", Icon: "result", SortOrder: 3, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 9, ParentID: 8, Title: "成功页", Name: "ResultSuccess", Path: "success", Component: "/result/success", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 10, ParentID: 8, Title: "失败页", Name: "ResultFail", Path: "fail", Component: "/result/fail", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},

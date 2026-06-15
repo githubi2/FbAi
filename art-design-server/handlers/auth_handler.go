@@ -24,7 +24,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	userID, role, valid := middleware.ValidateUser(req.UserName, req.Password)
+	userID, role, tenantID, valid := middleware.ValidateUser(req.UserName, req.Password)
 	if !valid {
 		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户名或密码错误"))
 		return
@@ -37,7 +37,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token := middleware.GenerateToken(userID, req.RememberMe)
+	token := middleware.GenerateToken(userID, req.RememberMe, tenantID)
 	refreshToken := fmt.Sprintf("refresh_%d_art-design-%d", userID, time.Now().UnixNano()+1)
 
 	c.JSON(http.StatusOK, models.Success(models.LoginResponse{
@@ -139,27 +139,46 @@ func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 		}
 	}
 
-	// 按钮权限：从角色关联的菜单中提取 menu_type='button' 的菜单 name
+	// 按钮权限：从角色关联的权限表中获取
 	buttons := make([]string, 0)
-	if user.RoleID > 0 {
-		role, err := services.DefaultRoleService.GetByID(user.RoleID)
-		if err == nil {
-			for _, menuID := range role.MenuIDs {
-				menu, err := services.DefaultMenuService.GetByID(uint(menuID))
-				if err == nil && menu.MenuType == "button" {
-					buttons = append(buttons, menu.Name)
-				}
+	permissions := services.DefaultTenantService.GetUserPermissions(id)
+
+	// 从 permissions 中提取按钮相关的（以 button: 开头或用于前端 v-auth）
+	buttons = permissions
+
+	// 获取租户信息
+	var tenantID *uint
+	var tenantName string
+	if user.TenantID != nil {
+		tenantID = user.TenantID
+		tenant, tErr := services.DefaultTenantService.GetByID(*user.TenantID)
+		if tErr == nil {
+			tenantName = tenant.Name
+		}
+	} else {
+		// 管理员可能已切换租户上下文，从请求上下文获取
+		if tid, exists := c.Get("tenantID"); exists && tid != nil {
+			if t, ok := tid.(*uint); ok {
+				tenantID = t
+			}
+		}
+		if tn, exists := c.Get("tenantName"); exists {
+			if name, ok := tn.(string); ok {
+				tenantName = name
 			}
 		}
 	}
 
 	resp := models.UserInfoResponse{
-		Buttons:  buttons,
-		Roles:    roles,
-		UserID:   user.ID,
-		UserName: user.UserName,
-		Email:    user.Email,
-		Avatar:   user.Avatar,
+		Buttons:     buttons,
+		Roles:       roles,
+		UserID:      user.ID,
+		UserName:    user.UserName,
+		Email:       user.Email,
+		Avatar:      user.Avatar,
+		Permissions: permissions,
+		TenantID:    tenantID,
+		TenantName:  tenantName,
 	}
 
 	c.JSON(http.StatusOK, models.Success(resp))
