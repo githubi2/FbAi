@@ -58,9 +58,28 @@ export class MenuProcessor {
    */
   private async processBackendMenu(): Promise<AppRouteRecord[]> {
     const list = await fetchGetMenuList()
-    // 后端返回 MenuTree 格式（flat fields），需转换为 AppRouteRecord 格式（nested meta）
     const transformed = this.transformBackendMenu(list as any[])
     return this.filterEmptyMenus(transformed)
+  }
+
+  /**
+   * 菜单名称 → i18n key 映射（与前端 asyncRoutes 的 meta.title 一致）
+   */
+  private readonly MENU_I18N_MAP: Record<string, string> = {
+    Dashboard: 'menus.dashboard.title',
+    Console: 'menus.dashboard.console',
+    System: 'menus.system.title',
+    User: 'menus.system.user',
+    Role: 'menus.system.role',
+    Menus: 'menus.system.menu',
+    UserCenter: 'menus.system.userCenter',
+    Result: 'menus.result.title',
+    ResultSuccess: 'menus.result.success',
+    ResultFail: 'menus.result.fail',
+    Exception: 'menus.exception.title',
+    Exception403: 'menus.exception.forbidden',
+    Exception404: 'menus.exception.notFound',
+    Exception500: 'menus.exception.serverError'
   }
 
   /**
@@ -75,7 +94,7 @@ export class MenuProcessor {
       path: menu.path || '',
       component: menu.component || '',
       meta: {
-        title: menu.title || menu.name || '',
+        title: this.MENU_I18N_MAP[menu.name] || menu.title || menu.name || '',
         icon: menu.icon || '',
         isHide: menu.hidden || false,
         isIframe: false
