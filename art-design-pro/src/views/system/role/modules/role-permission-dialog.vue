@@ -12,7 +12,7 @@
         ref="treeRef"
         :data="processedMenuList"
         show-checkbox
-        node-key="id"
+        node-key="name"
         :default-expand-all="isExpandAll"
         :props="defaultProps"
         @check="handleTreeCheck"
@@ -137,6 +137,12 @@
   }
 
   /**
+   * 后端菜单数据（id → name 映射，用于桥接前端路由 name 和后端菜单 ID）
+   */
+  const idToNameMap = ref<Map<number, string>>(new Map())
+  const nameToIdMap = ref<Map<string, number>>(new Map())
+
+  /**
    * 监听弹窗打开，从后端加载角色的菜单权限数据
    */
   watch(
@@ -146,8 +152,27 @@
         try {
           const res = await fetchGetRoleMenus(props.roleData.roleId)
           const roleMenus: number[] = res.roleMenus || []
+          const allMenus: any[] = (res as any).allMenus || []
+
+          // 构建 id↔name 双向映射（前端路由用 name 作为 node-key，后端用 id 存储权限）
+          const id2Name = new Map<number, string>()
+          const name2Id = new Map<string, number>()
+          allMenus.forEach((menu: any) => {
+            if (menu.id != null && menu.name) {
+              id2Name.set(Number(menu.id), menu.name)
+              name2Id.set(menu.name, Number(menu.id))
+            }
+          })
+          idToNameMap.value = id2Name
+          nameToIdMap.value = name2Id
+
+          // 将后端的 menuId 转换为前端路由的 name
+          const checkedNames: string[] = roleMenus
+            .map((id) => id2Name.get(id)!)
+            .filter(Boolean)
+
           await nextTick()
-          treeRef.value?.setCheckedKeys(roleMenus)
+          treeRef.value?.setCheckedKeys(checkedNames)
         } catch (error) {
           console.error('加载角色菜单权限失败:', error)
           ElMessage.error('加载菜单权限失败')
@@ -177,9 +202,12 @@
       return
     }
 
-    const checkedKeys = tree.getCheckedKeys()
-    // 只保留数字类型的 key（实际菜单 ID），过滤掉 auth 子节点（字符串 key）
-    const menuIds: number[] = checkedKeys.filter((k: any) => typeof k === 'number').map(Number)
+    const checkedKeys: string[] = tree.getCheckedKeys()
+    // 将前端路由 name 转换为后端菜单 ID
+    // auth 子节点的 key 格式为 "MenuName_authMark"，过滤掉只保留纯菜单 name
+    const menuIds: number[] = checkedKeys
+      .map((name) => nameToIdMap.value.get(name))
+      .filter((id): id is number => id != null)
 
     try {
       await fetchUpdateRole(props.roleData.roleId, {
@@ -232,15 +260,15 @@
   }
 
   /**
-   * 递归获取所有节点的 key (id)
+   * 递归获取所有节点的 key (name)
    * @param nodes 节点列表
    * @returns 所有节点的 key 数组
    */
-  const getAllNodeKeys = (nodes: MenuNode[]): (string | number)[] => {
-    const keys: (string | number)[] = []
+  const getAllNodeKeys = (nodes: MenuNode[]): string[] => {
+    const keys: string[] = []
     const traverse = (nodeList: MenuNode[]): void => {
       nodeList.forEach((node) => {
-        if (node.id !== undefined && node.id !== null) keys.push(node.id)
+        if (node.name) keys.push(node.name)
         if (node.children?.length) traverse(node.children)
       })
     }
