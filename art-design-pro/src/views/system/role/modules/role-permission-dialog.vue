@@ -15,6 +15,7 @@
         node-key="name"
         :default-expand-all="isExpandAll"
         :props="defaultProps"
+        :check-strictly="true"
         @check="handleTreeCheck"
       >
         <template #default="{ data }">
