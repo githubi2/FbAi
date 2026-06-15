@@ -69,6 +69,9 @@ let routeInitFailed = false
 // 路由初始化进行中标记，防止并发请求
 let routeInitInProgress = false
 
+// 路由初始化完成的 Promise（用于等待初始化完成的导航请求）
+let routeInitResolve: (() => void) | null = null
+
 /**
  * 获取 pendingLoading 状态
  */
@@ -96,6 +99,34 @@ export function getRouteInitFailed(): boolean {
 export function resetRouteInitState(): void {
   routeInitFailed = false
   routeInitInProgress = false
+  routeInitResolve = null
+}
+
+/**
+ * 等待路由初始化完成
+ */
+async function waitForRouteInit(): Promise<void> {
+  if (!routeInitInProgress) return
+  // 创建一个 Promise 等待初始化完成
+  await new Promise<void>((resolve) => {
+    // 如果已有等待中的 resolve，先调用旧的（防止泄漏）
+    const prevResolve = routeInitResolve
+    routeInitResolve = () => {
+      prevResolve?.()
+      resolve()
+    }
+  })
+}
+
+/**
+ * 完成路由初始化（重置标记 + 通知所有等待者）
+ */
+function finishRouteInit(): void {
+  routeInitInProgress = false
+  if (routeInitResolve) {
+    routeInitResolve()
+    routeInitResolve = null
+  }
 }
 
 /**
@@ -172,8 +203,10 @@ async function handleRouteGuard(
   if (!routeRegistry?.isRegistered() && userStore.isLogin) {
     // 防止并发请求（快速连续导航场景）
     if (routeInitInProgress) {
-      // 正在初始化中，等待完成后重新导航
-      next(false)
+      // 初始化进行中，等待完成后再导航，避免用户点击被吞掉
+      await waitForRouteInit()
+      // 初始化完成后，用 replace 重新导航到目标路由
+      next({ path: to.path, query: to.query, hash: to.hash, replace: true })
       return
     }
     await handleDynamicRoutes(to, next, router)
@@ -307,7 +340,7 @@ async function handleDynamicRoutes(
 
     // 8. 静态路由不依赖菜单权限，初始化后直接恢复目标地址。
     if (isStaticRoute(to.path)) {
-      routeInitInProgress = false
+      finishRouteInit()
       next({
         path: to.path,
         query: to.query,
@@ -326,7 +359,7 @@ async function handleDynamicRoutes(
     )
 
     // 初始化成功，重置进行中标记
-    routeInitInProgress = false
+    finishRouteInit()
 
     // 9. 重新导航到目标路由
     if (!hasPermission) {
@@ -359,14 +392,14 @@ async function handleDynamicRoutes(
     // 401 错误：axios 拦截器已处理退出登录，取消当前导航
     if (isUnauthorizedError(error)) {
       // 重置状态，允许重新登录后再次初始化
-      routeInitInProgress = false
+      finishRouteInit()
       next(false)
       return
     }
 
     // 标记初始化失败，防止死循环
     routeInitFailed = true
-    routeInitInProgress = false
+    finishRouteInit()
 
     // 输出详细错误信息，便于排查
     if (isHttpError(error)) {
