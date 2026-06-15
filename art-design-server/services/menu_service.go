@@ -229,7 +229,7 @@ func buildMenuTree(menus []models.Menu, parentID uint) []models.MenuTree {
 func (s *MenuService) listFallback() []models.Menu {
 	now := time.Now()
 	return []models.Menu{
-		{ID: 1, ParentID: 0, Title: "Dashboard", Name: "Dashboard", Path: "/dashboard", Component: "/index/index", Icon: "dashboard", SortOrder: 1, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 1, ParentID: 0, Title: "仪表盘", Name: "Dashboard", Path: "/dashboard", Component: "/index/index", Icon: "dashboard", SortOrder: 1, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 2, ParentID: 1, Title: "控制台", Name: "Console", Path: "console", Component: "/dashboard/console", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 3, ParentID: 0, Title: "系统管理", Name: "System", Path: "/system", Component: "/index/index", Icon: "system", SortOrder: 2, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 4, ParentID: 3, Title: "用户管理", Name: "User", Path: "user", Component: "/system/user", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
