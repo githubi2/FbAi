@@ -184,7 +184,6 @@ const handleDialogSubmit = async (formData: any) => {
         name: formData.name,
         code: formData.code,
         contactPhone: formData.contactPhone,
-        contactEmail: formData.contactEmail,
         description: formData.description,
         adminUserName: formData.adminUserName,
         adminPassword: formData.adminPassword,
@@ -198,7 +197,6 @@ const handleDialogSubmit = async (formData: any) => {
           id,
           name: formData.name,
           contactPhone: formData.contactPhone,
-          contactEmail: formData.contactEmail,
           description: formData.description,
           status: formData.status
         })

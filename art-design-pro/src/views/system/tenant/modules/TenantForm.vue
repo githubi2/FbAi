@@ -20,10 +20,6 @@
         <ElInput v-model="form.contactPhone" placeholder="请输入联系电话" maxlength="20" />
       </ElFormItem>
 
-      <ElFormItem label="联系邮箱" prop="contactEmail">
-        <ElInput v-model="form.contactEmail" placeholder="请输入联系邮箱" maxlength="128" />
-      </ElFormItem>
-
       <ElFormItem v-if="type === 'edit'" label="状态" prop="status">
         <ElSwitch v-model="form.status" :active-value="1" :inactive-value="0" />
       </ElFormItem>
@@ -85,7 +81,6 @@ const form = reactive<Record<string, any>>({
   name: '',
   code: '',
   contactPhone: '',
-  contactEmail: '',
   description: '',
   status: 1,
   adminUserName: '',
@@ -107,14 +102,12 @@ watch(() => props.visible, (val) => {
   if (val && props.type === 'edit' && props.tenantData) {
     form.name = props.tenantData.name || ''
     form.contactPhone = props.tenantData.contactPhone || ''
-    form.contactEmail = props.tenantData.contactEmail || ''
     form.description = props.tenantData.description || ''
     form.status = props.tenantData.status ?? 1
   } else if (val && props.type === 'add') {
     form.name = ''
     form.code = ''
     form.contactPhone = ''
-    form.contactEmail = ''
     form.description = ''
     form.status = 1
     form.adminUserName = ''
