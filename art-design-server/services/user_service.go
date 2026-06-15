@@ -83,7 +83,7 @@ func (s *UserService) GetByID(id uint) (*models.User, error) {
 	return &u, nil
 }
 
-// Create 创建用户（密码自动 bcrypt 哈希）
+// Create 创建用户（密码自动 bcrypt 哈希，role_name 自动从角色表获取）
 func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error) {
 	if db.Pool == nil {
 		return nil, errors.New("数据库未连接")
@@ -98,15 +98,24 @@ func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error)
 		return nil, errors.New("密码加密失败")
 	}
 
+	// 查询角色名称
+	roleName := ""
+	if req.RoleID > 0 {
+		role, err := DefaultRoleService.GetByID(uint(req.RoleID))
+		if err == nil {
+			roleName = role.RoleName
+		}
+	}
+
 	querySQL := `
 		INSERT INTO users (user_name, password, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id
 	`
 	var id uint
 	err = db.Pool.QueryRow(ctx, querySQL,
 		req.UserName, hashedPassword, req.NickName, req.Email, req.Phone,
-		req.Avatar, req.Status, req.RoleID, now, now,
+		req.Avatar, req.Status, req.RoleID, roleName, now, now,
 	).Scan(&id)
 	if err != nil {
 		return nil, errors.New("创建用户失败: " + err.Error())
@@ -121,12 +130,13 @@ func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error)
 		Avatar:    req.Avatar,
 		Status:    req.Status,
 		RoleID:    req.RoleID,
+		RoleName:  roleName,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
 }
 
-// Update 更新用户
+// Update 更新用户（role_name 自动从角色表同步）
 func (s *UserService) Update(req models.UpdateUserRequest) (*models.User, error) {
 	if db.Pool == nil {
 		return nil, errors.New("数据库未连接")
@@ -135,11 +145,20 @@ func (s *UserService) Update(req models.UpdateUserRequest) (*models.User, error)
 	ctx := context.Background()
 	now := time.Now()
 
+	// 查询角色名称
+	roleName := ""
+	if req.RoleID > 0 {
+		role, err := DefaultRoleService.GetByID(uint(req.RoleID))
+		if err == nil {
+			roleName = role.RoleName
+		}
+	}
+
 	querySQL := `
-		UPDATE users SET nick_name=$1, email=$2, phone=$3, avatar=$4, status=$5, role_id=$6, updated_at=$7
-		WHERE id=$8
+		UPDATE users SET nick_name=$1, email=$2, phone=$3, avatar=$4, status=$5, role_id=$6, role_name=$7, updated_at=$8
+		WHERE id=$9
 	`
-	_, err := db.Pool.Exec(ctx, querySQL, req.NickName, req.Email, req.Phone, req.Avatar, req.Status, req.RoleID, now, req.ID)
+	_, err := db.Pool.Exec(ctx, querySQL, req.NickName, req.Email, req.Phone, req.Avatar, req.Status, req.RoleID, roleName, now, req.ID)
 	if err != nil {
 		return nil, errors.New("更新用户失败")
 	}

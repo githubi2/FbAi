@@ -112,6 +112,14 @@ func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 		return
 	}
 
+	// 修复 role_name：如果为空，从 role_id 查询角色表
+	if user.RoleName == "" && user.RoleID > 0 {
+		role, roleErr := services.DefaultRoleService.GetByID(user.RoleID)
+		if roleErr == nil {
+			user.RoleName = role.RoleName
+		}
+	}
+
 	// 构建角色列表
 	var roles []string
 	if user.RoleName != "" {
@@ -123,10 +131,10 @@ func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 				break
 			}
 		}
-	}
-	// 兜底：如果 role_name 本身已经是 code
-	if len(roles) == 0 && user.RoleName != "" {
-		roles = append(roles, user.RoleName)
+		// 兜底：如果 role_name 本身已经是 code (如 "R_SUPER")
+		if len(roles) == 0 {
+			roles = append(roles, user.RoleName)
+		}
 	}
 
 	// 按钮权限：从角色关联的菜单中提取 menu_type='button' 的菜单 name
