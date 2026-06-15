@@ -117,24 +117,28 @@ func (s *TenantService) Create(req models.CreateTenantRequest) (*models.Tenant, 
 	}
 
 	// 2. 创建租户管理员角色（role_code 包含租户ID避免冲突）
+	// 分配菜单: Dashboard(1), System(2), Console(3), User(4), Role(5)
 	adminRoleCode := fmt.Sprintf("T%d_R_ADMIN", tenantID)
+	adminMenuIDs := "{1,2,3,4,5}"
 	var adminRoleID uint
 	err = tx.QueryRow(ctx,
-		`INSERT INTO roles (role_name, role_code, description, status, tenant_id, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		"租户管理员", adminRoleCode, "租户管理员角色", 1, tenantID, now, now,
+		`INSERT INTO roles (role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		"租户管理员", adminRoleCode, "租户管理员角色", adminMenuIDs, 1, tenantID, now, now,
 	).Scan(&adminRoleID)
 	if err != nil {
 		return nil, nil, errors.New("创建租户管理员角色失败: " + err.Error())
 	}
 
 	// 3. 创建普通用户角色
+	// 分配菜单: Dashboard(1), Console(3)
 	userRoleCode := fmt.Sprintf("T%d_R_USER", tenantID)
+	userMenuIDs := "{1,3}"
 	var userRoleID uint
 	err = tx.QueryRow(ctx,
-		`INSERT INTO roles (role_name, role_code, description, status, tenant_id, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		"普通用户", userRoleCode, "普通用户角色", 1, tenantID, now, now,
+		`INSERT INTO roles (role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		"普通用户", userRoleCode, "普通用户角色", userMenuIDs, 1, tenantID, now, now,
 	).Scan(&userRoleID)
 	if err != nil {
 		return nil, nil, errors.New("创建普通用户角色失败: " + err.Error())

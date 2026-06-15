@@ -53,11 +53,31 @@ func (s *MenuService) Tree() []models.MenuTree {
 }
 
 // TreeByIDs 按角色菜单ID列表获取菜单树
+// 自动包含所有祖先菜单，防止子菜单因父菜单缺失而成为孤儿
 func (s *MenuService) TreeByIDs(menuIDs []int64) []models.MenuTree {
 	all := s.List()
+
+	// 构建 ID→Menu 索引
+	menuMap := make(map[uint]models.Menu)
+	for _, m := range all {
+		menuMap[m.ID] = m
+	}
+
+	// 初始化并自动补全祖先菜单
 	idSet := make(map[uint]bool)
 	for _, id := range menuIDs {
-		idSet[uint(id)] = true
+		// 添加目标菜单及其所有祖先
+		for mid := uint(id); mid != 0; {
+			if idSet[mid] {
+				break // 祖先已经存在，无需继续
+			}
+			idSet[mid] = true
+			parent, ok := menuMap[mid]
+			if !ok {
+				break
+			}
+			mid = parent.ParentID
+		}
 	}
 
 	var filtered []models.Menu
