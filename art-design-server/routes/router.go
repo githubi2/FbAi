@@ -23,6 +23,9 @@ func SetupRouter() *gin.Engine {
 		})
 	})
 
+	// /api/user/info — 前端 fetchGetUserInfo() 直接调用（不在 /api/v1 组下）
+	r.GET("/api/user/info", middleware.AuthRequired(), handlers.DefaultAuthHandler.GetUserInfoHandler)
+
 	// API v1 路由组
 	v1 := r.Group("/api/v1")
 	{

@@ -59,3 +59,14 @@ type ChangePasswordRequest struct {
 	OldPassword string `json:"oldPassword" binding:"required"`
 	NewPassword string `json:"newPassword" binding:"required,min=6,max=32"`
 }
+
+// UserInfoResponse 用户信息响应（匹配前端 Api.Auth.UserInfo 类型）
+// 前端定义: src/types/api/api.d.ts -> interface UserInfo { buttons, roles, userId, userName, email, avatar }
+type UserInfoResponse struct {
+	Buttons  []string `json:"buttons"`
+	Roles    []string `json:"roles"`
+	UserID   uint     `json:"userId"`
+	UserName string   `json:"userName"`
+	Email    string   `json:"email"`
+	Avatar   string   `json:"avatar,omitempty"`
+}
