@@ -16,11 +16,7 @@
         <ElInput v-model="form.code" placeholder="英文编码，如 company_x" maxlength="64" />
       </ElFormItem>
 
-      <ElFormItem label="联系人" prop="contactName">
-        <ElInput v-model="form.contactName" placeholder="请输入联系人姓名" maxlength="64" />
-      </ElFormItem>
-
-      <ElFormItem label="联系电话" prop="contactPhone">
+      <ElFormItem label="联系方式" prop="contactPhone">
         <ElInput v-model="form.contactPhone" placeholder="请输入联系电话" maxlength="20" />
       </ElFormItem>
 
@@ -88,7 +84,6 @@ const submitting = ref(false)
 const form = reactive<Record<string, any>>({
   name: '',
   code: '',
-  contactName: '',
   contactPhone: '',
   contactEmail: '',
   description: '',
@@ -111,7 +106,6 @@ const rules: FormRules = {
 watch(() => props.visible, (val) => {
   if (val && props.type === 'edit' && props.tenantData) {
     form.name = props.tenantData.name || ''
-    form.contactName = props.tenantData.contactName || ''
     form.contactPhone = props.tenantData.contactPhone || ''
     form.contactEmail = props.tenantData.contactEmail || ''
     form.description = props.tenantData.description || ''
@@ -119,7 +113,6 @@ watch(() => props.visible, (val) => {
   } else if (val && props.type === 'add') {
     form.name = ''
     form.code = ''
-    form.contactName = ''
     form.contactPhone = ''
     form.contactEmail = ''
     form.description = ''

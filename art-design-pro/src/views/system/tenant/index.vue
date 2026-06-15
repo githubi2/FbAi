@@ -108,14 +108,8 @@ const {
         }
       },
       {
-        prop: 'contactName',
-        label: '联系人',
-        minWidth: 100,
-        formatter: (row: any) => row.contactName || '—'
-      },
-      {
         prop: 'contactPhone',
-        label: '联系电话',
+        label: '联系方式',
         minWidth: 120,
         formatter: (row: any) => row.contactPhone || '—'
       },
@@ -189,7 +183,6 @@ const handleDialogSubmit = async (formData: any) => {
       await fetchCreateTenant({
         name: formData.name,
         code: formData.code,
-        contactName: formData.contactName,
         contactPhone: formData.contactPhone,
         contactEmail: formData.contactEmail,
         description: formData.description,
@@ -204,7 +197,6 @@ const handleDialogSubmit = async (formData: any) => {
         await fetchUpdateTenant({
           id,
           name: formData.name,
-          contactName: formData.contactName,
           contactPhone: formData.contactPhone,
           contactEmail: formData.contactEmail,
           description: formData.description,
