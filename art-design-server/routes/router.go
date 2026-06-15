@@ -23,10 +23,21 @@ func SetupRouter() *gin.Engine {
 		})
 	})
 
-	// /api/user/info — 前端 fetchGetUserInfo() 直接调用（不在 /api/v1 组下）
+	// ==================== 向后兼容路由（前端旧 API 路径） ====================
+
+	// 前端 fetchGetUserInfo() 直接调用（不在 /api/v1 组下）
 	r.GET("/api/user/info", middleware.AuthRequired(), handlers.DefaultAuthHandler.GetUserInfoHandler)
 
-	// API v1 路由组
+	// 旧版用户列表（兼容前端 fetchGetUserList）
+	r.GET("/api/user/list", middleware.AuthRequired(), handlers.DefaultUserHandler.List)
+
+	// 旧版角色列表（兼容前端 fetchGetRoleList）
+	r.GET("/api/role/list", middleware.AuthRequired(), handlers.DefaultRoleHandler.List)
+
+	// 旧版菜单（兼容前端 fetchGetMenuList -> /api/v3/system/menus/simple）
+	r.GET("/api/v3/system/menus/simple", middleware.AuthRequired(), handlers.DefaultMenuHandler.Tree)
+
+	// ==================== API v1 路由组 ====================
 	v1 := r.Group("/api/v1")
 	{
 		// 认证接口（无需登录）

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/githubi2/FbAi/art-design-server/crypto"
 	"github.com/githubi2/FbAi/art-design-server/db"
 	"github.com/githubi2/FbAi/art-design-server/models"
 )
@@ -30,7 +31,7 @@ func (s *UserService) List(page, size int, keyword string) ([]models.User, int64
 	// 分页查询
 	offset := (page - 1) * size
 	querySQL := `
-		SELECT id, user_name, password, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at
+		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at
 		FROM users
 		WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%')
 		ORDER BY id ASC
@@ -45,12 +46,15 @@ func (s *UserService) List(page, size int, keyword string) ([]models.User, int64
 	var users []models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.UserName, &u.Password, &u.NickName, &u.Email, &u.Phone,
+		if err := rows.Scan(&u.ID, &u.UserName, &u.NickName, &u.Email, &u.Phone,
 			&u.Avatar, &u.Status, &u.RoleID, &u.RoleName, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			continue
 		}
 		u.Password = "" // 不返回密码
 		users = append(users, u)
+	}
+	if users == nil {
+		users = []models.User{}
 	}
 
 	return users, total
@@ -64,12 +68,12 @@ func (s *UserService) GetByID(id uint) (*models.User, error) {
 
 	ctx := context.Background()
 	querySQL := `
-		SELECT id, user_name, password, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at
+		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at
 		FROM users WHERE id = $1
 	`
 	var u models.User
 	err := db.Pool.QueryRow(ctx, querySQL, id).Scan(
-		&u.ID, &u.UserName, &u.Password, &u.NickName, &u.Email, &u.Phone,
+		&u.ID, &u.UserName, &u.NickName, &u.Email, &u.Phone,
 		&u.Avatar, &u.Status, &u.RoleID, &u.RoleName, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -79,7 +83,7 @@ func (s *UserService) GetByID(id uint) (*models.User, error) {
 	return &u, nil
 }
 
-// Create 创建用户
+// Create 创建用户（密码自动 bcrypt 哈希）
 func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error) {
 	if db.Pool == nil {
 		return nil, errors.New("数据库未连接")
@@ -88,15 +92,21 @@ func (s *UserService) Create(req models.CreateUserRequest) (*models.User, error)
 	ctx := context.Background()
 	now := time.Now()
 
+	// 哈希密码
+	hashedPassword, err := crypto.HashPassword(req.Password)
+	if err != nil {
+		return nil, errors.New("密码加密失败")
+	}
+
 	querySQL := `
 		INSERT INTO users (user_name, password, nick_name, email, phone, avatar, status, role_id, role_name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', $9, $10)
 		RETURNING id
 	`
 	var id uint
-	err := db.Pool.QueryRow(ctx, querySQL,
-		req.UserName, req.Password, req.NickName, req.Email, req.Phone,
-		req.Avatar, req.Status, req.RoleID, "", now, now,
+	err = db.Pool.QueryRow(ctx, querySQL,
+		req.UserName, hashedPassword, req.NickName, req.Email, req.Phone,
+		req.Avatar, req.Status, req.RoleID, now, now,
 	).Scan(&id)
 	if err != nil {
 		return nil, errors.New("创建用户失败: " + err.Error())
@@ -144,8 +154,14 @@ func (s *UserService) Delete(id uint) error {
 	}
 
 	ctx := context.Background()
-	_, err := db.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
-	return err
+	result, err := db.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("用户不存在")
+	}
+	return nil
 }
 
 // GetAuthInfo 获取用户认证信息（用于登录）
@@ -187,10 +203,10 @@ func (s *UserService) GetPasswordHash(userName string) (uint, string, string, er
 	return id, password, roleName, nil
 }
 
-// --- 内存 fallback（数据库不可用时使用） ---
+// --- 内存 fallback（数据库不可用时使用）---
 
 var fallbackUsers = map[uint]*models.User{
-	1: {ID: 1, UserName: "admin", NickName: "管理员", Status: 1, RoleName: "R_SUPER"},
+	1: {ID: 1, UserName: "admin", NickName: "管理员", Status: 1, RoleName: "超级管理员"},
 }
 
 func (s *UserService) listFallback(page, size int, keyword string) ([]models.User, int64) {

@@ -1,200 +1,239 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"sort"
-	"sync"
 	"time"
 
+	"github.com/githubi2/FbAi/art-design-server/db"
 	"github.com/githubi2/FbAi/art-design-server/models"
 )
 
-// MenuService 菜单服务
-type MenuService struct {
-	mu    sync.RWMutex
-	menus map[uint]*models.Menu
-	seq   uint
-}
+// MenuService 菜单服务（PostgreSQL 实现）
+type MenuService struct{}
 
-var DefaultMenuService = NewMenuService()
-
-func NewMenuService() *MenuService {
-	svc := &MenuService{
-		menus: make(map[uint]*models.Menu),
-		seq:   6,
-	}
-	// 初始化默认菜单（匹配前端路由结构）
-	now := time.Now()
-	menuList := []models.Menu{
-		{ID: 1, ParentID: 0, Name: "Dashboard", Path: "/dashboard", Component: "LAYOUT", Icon: "dashboard", Sort: 1, Type: 1, Status: 1, Locale: "menus.dashboard", CreatedAt: now, UpdatedAt: now},
-		{ID: 2, ParentID: 1, Name: "控制台", Path: "console", Component: "/dashboard/console", Icon: "", Sort: 1, Type: 2, Status: 1, Locale: "menus.dashboard.console", CreatedAt: now, UpdatedAt: now},
-		{ID: 3, ParentID: 0, Name: "系统管理", Path: "/system", Component: "LAYOUT", Icon: "system", Sort: 2, Type: 1, Status: 1, Locale: "menus.system", CreatedAt: now, UpdatedAt: now},
-		{ID: 4, ParentID: 3, Name: "用户管理", Path: "user", Component: "/system/user", Icon: "", Sort: 1, Type: 2, Status: 1, AuthMark: "system:user", Locale: "menus.system.user", CreatedAt: now, UpdatedAt: now},
-		{ID: 5, ParentID: 3, Name: "角色管理", Path: "role", Component: "/system/role", Icon: "", Sort: 2, Type: 2, Status: 1, AuthMark: "system:role", Locale: "menus.system.role", CreatedAt: now, UpdatedAt: now},
-		{ID: 6, ParentID: 3, Name: "菜单管理", Path: "menu", Component: "/system/menu", Icon: "", Sort: 3, Type: 2, Status: 1, AuthMark: "system:menu", Locale: "menus.system.menu", CreatedAt: now, UpdatedAt: now},
-	}
-	for i := range menuList {
-		m := &menuList[i]
-		svc.menus[m.ID] = m
-	}
-	return svc
-}
+var DefaultMenuService = &MenuService{}
 
 // List 获取所有菜单平铺列表
 func (s *MenuService) List() []models.Menu {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]models.Menu, 0, len(s.menus))
-	for _, m := range s.menus {
-		result = append(result, *m)
+	if db.Pool == nil {
+		return s.listFallback()
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Sort < result[j].Sort
-	})
-	return result
+
+	ctx := context.Background()
+	querySQL := `SELECT id, parent_id, title, name, path, component, icon, sort_order, menu_type, hidden, status, created_at, updated_at
+		FROM menus ORDER BY sort_order ASC, id ASC`
+
+	rows, err := db.Pool.Query(ctx, querySQL)
+	if err != nil {
+		return s.listFallback()
+	}
+	defer rows.Close()
+
+	var menus []models.Menu
+	for rows.Next() {
+		var m models.Menu
+		if err := rows.Scan(&m.ID, &m.ParentID, &m.Title, &m.Name, &m.Path, &m.Component,
+			&m.Icon, &m.SortOrder, &m.MenuType, &m.Hidden, &m.Status, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			continue
+		}
+		menus = append(menus, m)
+	}
+	if menus == nil {
+		menus = []models.Menu{}
+	}
+	return menus
 }
 
 // Tree 获取菜单树
 func (s *MenuService) Tree() []models.MenuTree {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// 收集所有菜单
-	all := make([]models.Menu, 0, len(s.menus))
-	for _, m := range s.menus {
-		all = append(all, *m)
-	}
-
-	// 构建树
-	return buildTree(all, 0)
+	all := s.List()
+	return buildMenuTree(all, 0)
 }
 
 // TreeByIDs 按角色菜单ID列表获取菜单树
-func (s *MenuService) TreeByIDs(menuIDs []uint) []models.MenuTree {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
+func (s *MenuService) TreeByIDs(menuIDs []int64) []models.MenuTree {
+	all := s.List()
 	idSet := make(map[uint]bool)
 	for _, id := range menuIDs {
-		idSet[id] = true
+		idSet[uint(id)] = true
 	}
 
 	var filtered []models.Menu
-	for _, m := range s.menus {
+	for _, m := range all {
 		if idSet[m.ID] {
-			filtered = append(filtered, *m)
+			filtered = append(filtered, m)
 		}
 	}
 
-	return buildTree(filtered, 0)
+	return buildMenuTree(filtered, 0)
 }
 
 // GetByID 按ID获取菜单
 func (s *MenuService) GetByID(id uint) (*models.Menu, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	if db.Pool == nil {
+		return nil, errors.New("数据库未连接")
+	}
 
-	m, ok := s.menus[id]
-	if !ok {
+	ctx := context.Background()
+	querySQL := `SELECT id, parent_id, title, name, path, component, icon, sort_order, menu_type, hidden, status, created_at, updated_at
+		FROM menus WHERE id = $1`
+
+	var m models.Menu
+	err := db.Pool.QueryRow(ctx, querySQL, id).Scan(
+		&m.ID, &m.ParentID, &m.Title, &m.Name, &m.Path, &m.Component,
+		&m.Icon, &m.SortOrder, &m.MenuType, &m.Hidden, &m.Status, &m.CreatedAt, &m.UpdatedAt,
+	)
+	if err != nil {
 		return nil, errors.New("菜单不存在")
 	}
-	return m, nil
+	return &m, nil
 }
 
 // Create 创建菜单
 func (s *MenuService) Create(req models.CreateMenuRequest) (*models.Menu, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if db.Pool == nil {
+		return nil, errors.New("数据库未连接")
+	}
 
-	s.seq++
+	ctx := context.Background()
 	now := time.Now()
-	menu := &models.Menu{
-		ID:        s.seq,
+
+	hidden := false
+	if req.Hidden != nil {
+		hidden = *req.Hidden
+	}
+	menuType := req.MenuType
+	if menuType == "" {
+		menuType = "menu"
+	}
+
+	querySQL := `INSERT INTO menus (parent_id, title, name, path, component, icon, sort_order, menu_type, hidden, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`
+
+	var id uint
+	err := db.Pool.QueryRow(ctx, querySQL,
+		req.ParentID, req.Title, req.Name, req.Path, req.Component, req.Icon,
+		req.SortOrder, menuType, hidden, req.Status, now, now,
+	).Scan(&id)
+	if err != nil {
+		return nil, errors.New("创建菜单失败: " + err.Error())
+	}
+
+	return &models.Menu{
+		ID:        id,
 		ParentID:  req.ParentID,
+		Title:     req.Title,
 		Name:      req.Name,
 		Path:      req.Path,
 		Component: req.Component,
 		Icon:      req.Icon,
-		Sort:      req.Sort,
-		Type:      req.Type,
+		SortOrder: req.SortOrder,
+		MenuType:  menuType,
+		Hidden:    hidden,
 		Status:    req.Status,
-		AuthMark:  req.AuthMark,
-		Locale:    req.Locale,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}
-	s.menus[s.seq] = menu
-	return menu, nil
+	}, nil
 }
 
 // Update 更新菜单
 func (s *MenuService) Update(req models.UpdateMenuRequest) (*models.Menu, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	m, ok := s.menus[req.ID]
-	if !ok {
-		return nil, errors.New("菜单不存在")
+	if db.Pool == nil {
+		return nil, errors.New("数据库未连接")
 	}
 
-	m.ParentID = req.ParentID
-	m.Name = req.Name
-	m.Path = req.Path
-	m.Component = req.Component
-	m.Icon = req.Icon
-	m.Sort = req.Sort
-	m.Type = req.Type
-	m.Status = req.Status
-	m.AuthMark = req.AuthMark
-	m.Locale = req.Locale
-	m.UpdatedAt = time.Now()
+	ctx := context.Background()
+	now := time.Now()
 
-	return m, nil
+	// 检查菜单是否存在
+	_, err := s.GetByID(req.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	hidden := false
+	if req.Hidden != nil {
+		hidden = *req.Hidden
+	}
+	menuType := req.MenuType
+	if menuType == "" {
+		menuType = "menu"
+	}
+
+	querySQL := `UPDATE menus SET parent_id=$1, title=$2, name=$3, path=$4, component=$5, icon=$6, 
+		sort_order=$7, menu_type=$8, hidden=$9, status=$10, updated_at=$11 WHERE id=$12`
+
+	_, err = db.Pool.Exec(ctx, querySQL,
+		req.ParentID, req.Title, req.Name, req.Path, req.Component, req.Icon,
+		req.SortOrder, menuType, hidden, req.Status, now, req.ID,
+	)
+	if err != nil {
+		return nil, errors.New("更新菜单失败")
+	}
+
+	return s.GetByID(req.ID)
 }
 
 // Delete 删除菜单
 func (s *MenuService) Delete(id uint) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.menus[id]; !ok {
-		return errors.New("菜单不存在")
+	if db.Pool == nil {
+		return errors.New("数据库未连接")
 	}
+
+	ctx := context.Background()
 
 	// 级联删除子菜单
-	for cid, cm := range s.menus {
-		if cm.ParentID == id {
-			delete(s.menus, cid)
-		}
+	_, _ = db.Pool.Exec(ctx, `DELETE FROM menus WHERE parent_id = $1`, id)
+
+	result, err := db.Pool.Exec(ctx, `DELETE FROM menus WHERE id = $1`, id)
+	if err != nil {
+		return err
 	}
-	delete(s.menus, id)
+	if result.RowsAffected() == 0 {
+		return errors.New("菜单不存在")
+	}
 	return nil
 }
 
-func buildTree(menus []models.Menu, parentID uint) []models.MenuTree {
+func buildMenuTree(menus []models.Menu, parentID uint) []models.MenuTree {
 	var result []models.MenuTree
 	for _, m := range menus {
 		if m.ParentID == parentID {
 			node := models.MenuTree{
 				ID:        m.ID,
 				ParentID:  m.ParentID,
+				Title:     m.Title,
 				Name:      m.Name,
 				Path:      m.Path,
 				Component: m.Component,
 				Icon:      m.Icon,
-				Sort:      m.Sort,
-				Type:      m.Type,
-				AuthMark:  m.AuthMark,
-				Locale:    m.Locale,
-				Children:  buildTree(menus, m.ID),
+				SortOrder: m.SortOrder,
+				MenuType:  m.MenuType,
+				Hidden:    m.Hidden,
+				Children:  buildMenuTree(menus, m.ID),
 			}
 			result = append(result, node)
 		}
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Sort < result[j].Sort
+		return result[i].SortOrder < result[j].SortOrder
 	})
 	return result
+}
+
+// --- 内存 fallback（数据库不可用时使用）---
+
+func (s *MenuService) listFallback() []models.Menu {
+	now := time.Now()
+	return []models.Menu{
+		{ID: 1, ParentID: 0, Title: "Dashboard", Name: "Dashboard", Path: "/dashboard", Component: "LAYOUT", Icon: "dashboard", SortOrder: 1, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 2, ParentID: 1, Title: "控制台", Name: "Console", Path: "console", Component: "/dashboard/console", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 3, ParentID: 0, Title: "系统管理", Name: "System", Path: "/system", Component: "LAYOUT", Icon: "system", SortOrder: 2, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 4, ParentID: 3, Title: "用户管理", Name: "User", Path: "user", Component: "/system/user", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 5, ParentID: 3, Title: "角色管理", Name: "Role", Path: "role", Component: "/system/role", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 6, ParentID: 3, Title: "菜单管理", Name: "Menu", Path: "menu", Component: "/system/menu", SortOrder: 3, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+	}
 }

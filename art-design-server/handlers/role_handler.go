@@ -45,6 +45,10 @@ func (h *RoleHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if req.Status == 0 {
+		req.Status = 1
+	}
+
 	role, err := services.DefaultRoleService.Create(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, err.Error()))
@@ -68,6 +72,10 @@ func (h *RoleHandler) Update(c *gin.Context) {
 		return
 	}
 	req.ID = uint(id)
+
+	if req.Status == 0 {
+		req.Status = 1
+	}
 
 	role, err := services.DefaultRoleService.Update(req)
 	if err != nil {

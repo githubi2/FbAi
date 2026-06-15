@@ -2,34 +2,6 @@
  * API 接口类型定义模块
  *
  * 提供所有后端接口的类型定义
- *
- * ## 主要功能
- *
- * - 通用类型（分页参数、响应结构等）
- * - 认证类型（登录、用户信息等）
- * - 系统管理类型（用户、角色等）
- * - 全局命名空间声明
- *
- * ## 使用场景
- *
- * - API 请求参数类型约束
- * - API 响应数据类型定义
- * - 接口文档类型同步
- *
- * ## 注意事项
- *
- * - 在 .vue 文件使用需要在 eslint.config.mjs 中配置 globals: { Api: 'readonly' }
- * - 使用全局命名空间，无需导入即可使用
- *
- * ## 使用方式
- *
- * ```typescript
- * const params: Api.Auth.LoginParams = { userName: 'admin', password: '123456' }
- * const response: Api.Auth.UserInfo = await fetchUserInfo()
- * ```
- *
- * @module types/api/api
- * @author Art Design Pro Team
  */
 
 declare namespace Api {
@@ -37,11 +9,8 @@ declare namespace Api {
   namespace Common {
     /** 分页参数 */
     interface PaginationParams {
-      /** 当前页码 */
       current: number
-      /** 每页条数 */
       size: number
-      /** 总条数 */
       total: number
     }
 
@@ -90,7 +59,7 @@ declare namespace Api {
     /** 用户列表 */
     type UserList = Api.Common.PaginatedResponse<UserListItem>
 
-    /** 用户列表项 */
+    /** 用户列表项（匹配后端返回字段） */
     interface UserListItem {
       id: number
       avatar: string
@@ -101,6 +70,8 @@ declare namespace Api {
       userPhone: string
       userEmail: string
       userRoles: string[]
+      roleId?: number
+      roleName?: string
       createBy: string
       createTime: string
       updateBy: string
@@ -113,6 +84,28 @@ declare namespace Api {
         Api.Common.CommonSearchParams
     >
 
+    /** 创建用户参数 */
+    interface CreateUserParams {
+      userName: string
+      password: string
+      nickName?: string
+      userEmail?: string
+      userPhone?: string
+      avatar?: string
+      status?: number
+      roleId?: number
+    }
+
+    /** 更新用户参数 */
+    interface UpdateUserParams {
+      nickName?: string
+      userEmail?: string
+      userPhone?: string
+      avatar?: string
+      status?: number
+      roleId?: number
+    }
+
     /** 角色列表 */
     type RoleList = Api.Common.PaginatedResponse<RoleListItem>
 
@@ -123,6 +116,7 @@ declare namespace Api {
       roleCode: string
       description: string
       enabled: boolean
+      menuIds?: number[]
       createTime: string
     }
 
@@ -134,5 +128,23 @@ declare namespace Api {
           endTime: string | null
         }
     >
+
+    /** 创建角色参数 */
+    interface CreateRoleParams {
+      roleName: string
+      roleCode: string
+      description?: string
+      status?: number
+      menuIds?: number[]
+    }
+
+    /** 更新角色参数 */
+    interface UpdateRoleParams {
+      roleName?: string
+      roleCode?: string
+      description?: string
+      status?: number
+      menuIds?: number[]
+    }
   }
 }

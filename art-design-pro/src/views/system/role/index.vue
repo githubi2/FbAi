@@ -22,7 +22,6 @@
         </template>
       </ArtTableHeader>
 
-      <!-- 表格 -->
       <ArtTable
         :loading="loading"
         :data="data"
@@ -54,12 +53,12 @@
 <script setup lang="ts">
   import { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
   import { useTable } from '@/hooks/core/useTable'
-  import { fetchGetRoleList } from '@/api/system-manage'
+  import { fetchGetRoleList, fetchDeleteRole } from '@/api/system-manage'
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
   import RoleSearch from './modules/role-search.vue'
   import RoleEditDialog from './modules/role-edit-dialog.vue'
   import RolePermissionDialog from './modules/role-permission-dialog.vue'
-  import { ElTag, ElMessageBox } from 'element-plus'
+  import { ElTag, ElMessageBox, ElMessage } from 'element-plus'
 
   defineOptions({ name: 'Role' })
 
@@ -68,7 +67,6 @@
     daterange?: string[]
   }
 
-  // 搜索表单
   const searchForm = ref<RoleSearchFormParams>({
     roleName: undefined,
     roleCode: undefined,
@@ -96,14 +94,12 @@
     handleCurrentChange,
     refreshData
   } = useTable({
-    // 核心配置
     core: {
       apiFn: fetchGetRoleList,
       apiParams: {
         current: 1,
         size: 20
       },
-      // 排除 apiParams 中的属性
       excludeParams: ['daterange'],
       columnsFactory: () => [
         {
@@ -179,6 +175,21 @@
             ])
         }
       ]
+    },
+    transform: {
+      dataTransformer: (records) => {
+        if (!Array.isArray(records)) return []
+        return records.map((item: any) => ({
+          ...item,
+          roleId: item.id || item.roleId,
+          roleName: item.roleName || '',
+          roleCode: item.roleCode || '',
+          description: item.description || '',
+          enabled: item.status === 1 || item.enabled === true,
+          createTime: item.createTime || '',
+          menuIds: item.menuIds || []
+        }))
+      }
     }
   })
 
@@ -190,12 +201,7 @@
     currentRoleData.value = row
   }
 
-  /**
-   * 搜索处理
-   * @param params 搜索参数
-   */
   const handleSearch = (params: RoleSearchFormParams) => {
-    // 处理日期区间参数，把 daterange 转换为 startTime 和 endTime
     const { daterange, ...filtersParams } = params
     const [startTime, endTime] = Array.isArray(daterange) ? daterange : [null, null]
 
@@ -222,19 +228,20 @@
     currentRoleData.value = row
   }
 
-  const deleteRole = (row: RoleListItem) => {
-    ElMessageBox.confirm(`确定删除角色"${row.roleName}"吗？此操作不可恢复！`, '删除确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-      .then(() => {
-        // TODO: 调用删除接口
-        ElMessage.success('删除成功')
-        refreshData()
+  const deleteRole = async (row: RoleListItem) => {
+    try {
+      await ElMessageBox.confirm(`确定删除角色"${row.roleName}"吗？此操作不可恢复！`, '删除确认', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
       })
-      .catch(() => {
-        ElMessage.info('已取消删除')
-      })
+      await fetchDeleteRole(row.roleId)
+      ElMessage.success('删除成功')
+      refreshData()
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        ElMessage.error('删除失败')
+      }
+    }
   }
 </script>

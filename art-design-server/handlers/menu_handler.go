@@ -51,6 +51,10 @@ func (h *MenuHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if req.Status == 0 {
+		req.Status = 1
+	}
+
 	menu, err := services.DefaultMenuService.Create(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, err.Error()))
@@ -74,6 +78,10 @@ func (h *MenuHandler) Update(c *gin.Context) {
 		return
 	}
 	req.ID = uint(id)
+
+	if req.Status == 0 {
+		req.Status = 1
+	}
 
 	menu, err := services.DefaultMenuService.Update(req)
 	if err != nil {

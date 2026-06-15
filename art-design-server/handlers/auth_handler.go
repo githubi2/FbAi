@@ -98,7 +98,6 @@ func (h *AuthHandler) GetMenus(c *gin.Context) {
 }
 
 // GetUserInfoHandler GET /api/user/info — 返回前端兼容的用户信息格式
-// 对应前端 fetchGetUserInfo() -> Api.Auth.UserInfo
 func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -113,31 +112,32 @@ func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 		return
 	}
 
-	// 构建角色列表：通过 role_name 匹配角色获取 code
+	// 构建角色列表
 	var roles []string
 	if user.RoleName != "" {
+		// 尝试通过角色名称匹配 code
 		allRoles := services.DefaultRoleService.List()
 		for _, r := range allRoles {
-			if r.Name == user.RoleName {
-				roles = append(roles, r.Code)
+			if r.RoleName == user.RoleName {
+				roles = append(roles, r.RoleCode)
 				break
 			}
 		}
 	}
-	// 兜底：如果 role_name 本身已经是 code（如 "R_SUPER"），直接使用
+	// 兜底：如果 role_name 本身已经是 code
 	if len(roles) == 0 && user.RoleName != "" {
 		roles = append(roles, user.RoleName)
 	}
 
-	// 按钮权限：从角色关联的菜单中提取 authMark
+	// 按钮权限：从角色关联的菜单中提取 menu_type='button' 的菜单 name
 	buttons := make([]string, 0)
 	if user.RoleID > 0 {
 		role, err := services.DefaultRoleService.GetByID(user.RoleID)
 		if err == nil {
 			for _, menuID := range role.MenuIDs {
-				menu, err := services.DefaultMenuService.GetByID(menuID)
-				if err == nil && menu.AuthMark != "" && menu.Type == 3 { // Type 3 = 按钮
-					buttons = append(buttons, menu.AuthMark)
+				menu, err := services.DefaultMenuService.GetByID(uint(menuID))
+				if err == nil && menu.MenuType == "button" {
+					buttons = append(buttons, menu.Name)
 				}
 			}
 		}

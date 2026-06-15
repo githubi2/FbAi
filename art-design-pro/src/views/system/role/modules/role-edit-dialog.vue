@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
   import type { FormInstance, FormRules } from 'element-plus'
+  import { fetchCreateRole, fetchUpdateRole } from '@/api/system-manage'
 
   type RoleListItem = Api.SystemManage.RoleListItem
 
@@ -58,17 +59,11 @@
 
   const formRef = ref<FormInstance>()
 
-  /**
-   * 弹窗显示状态双向绑定
-   */
   const visible = computed({
     get: () => props.modelValue,
     set: (value) => emit('update:modelValue', value)
   })
 
-  /**
-   * 表单验证规则
-   */
   const rules = reactive<FormRules>({
     roleName: [
       { required: true, message: '请输入角色名称', trigger: 'blur' },
@@ -81,21 +76,13 @@
     description: [{ required: true, message: '请输入角色描述', trigger: 'blur' }]
   })
 
-  /**
-   * 表单数据
-   */
-  const form = reactive<RoleListItem>({
-    roleId: 0,
+  const form = reactive({
     roleName: '',
     roleCode: '',
     description: '',
-    createTime: '',
     enabled: true
   })
 
-  /**
-   * 监听弹窗打开，初始化表单数据
-   */
   watch(
     () => props.modelValue,
     (newVal) => {
@@ -103,9 +90,6 @@
     }
   )
 
-  /**
-   * 监听角色数据变化，更新表单
-   */
   watch(
     () => props.roleData,
     (newData) => {
@@ -114,45 +98,55 @@
     { deep: true }
   )
 
-  /**
-   * 初始化表单数据
-   * 根据弹窗类型填充表单或重置表单
-   */
   const initForm = () => {
     if (props.dialogType === 'edit' && props.roleData) {
-      Object.assign(form, props.roleData)
+      Object.assign(form, {
+        roleName: props.roleData.roleName || '',
+        roleCode: props.roleData.roleCode || '',
+        description: props.roleData.description || '',
+        enabled: props.roleData.enabled !== false
+      })
     } else {
       Object.assign(form, {
-        roleId: 0,
         roleName: '',
         roleCode: '',
         description: '',
-        createTime: '',
         enabled: true
       })
     }
   }
 
-  /**
-   * 关闭弹窗并重置表单
-   */
   const handleClose = () => {
     visible.value = false
     formRef.value?.resetFields()
   }
 
-  /**
-   * 提交表单
-   * 验证通过后调用接口保存数据
-   */
   const handleSubmit = async () => {
     if (!formRef.value) return
 
     try {
       await formRef.value.validate()
-      // TODO: 调用新增/编辑接口
-      const message = props.dialogType === 'add' ? '新增成功' : '修改成功'
-      ElMessage.success(message)
+
+      if (props.dialogType === 'add') {
+        await fetchCreateRole({
+          roleName: form.roleName,
+          roleCode: form.roleCode,
+          description: form.description,
+          status: form.enabled ? 1 : 0
+        })
+        ElMessage.success('新增成功')
+      } else {
+        const roleId = props.roleData?.roleId
+        if (roleId) {
+          await fetchUpdateRole(roleId, {
+            roleName: form.roleName,
+            roleCode: form.roleCode,
+            description: form.description,
+            status: form.enabled ? 1 : 0
+          })
+          ElMessage.success('修改成功')
+        }
+      }
       emit('success')
       handleClose()
     } catch (error) {

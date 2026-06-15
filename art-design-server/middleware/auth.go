@@ -7,34 +7,20 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/githubi2/FbAi/art-design-server/crypto"
 	"github.com/githubi2/FbAi/art-design-server/services"
-	"golang.org/x/crypto/bcrypt"
 )
 
-// CheckPassword 校验密码
-func CheckPassword(hashed, plain string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
-}
-
-// HashPassword 生成密码哈希
-func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-	return string(hash), nil
-}
+// TODO: 后续迁移为 JWT
 
 // ValidateUser 验证用户名密码（使用 PostgreSQL）
 func ValidateUser(userName, password string) (uint, string, bool) {
-	// 从数据库获取用户认证信息
 	userID, hashedPassword, role, err := services.DefaultUserService.GetPasswordHash(userName)
 	if err != nil {
 		return 0, "", false
 	}
 
-	// 验证密码
-	if !CheckPassword(hashedPassword, password) {
+	if !crypto.CheckPassword(hashedPassword, password) {
 		return 0, "", false
 	}
 
@@ -70,7 +56,6 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		// Bearer token 解析
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 		userID, valid := ValidateToken(token)
 		if !valid {
@@ -82,7 +67,6 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		// 将用户信息存入上下文
 		c.Set("userID", userID)
 		c.Next()
 	}
