@@ -1,0 +1,10 @@
+# Hermes Agent project files
+.hermes/
+
+# Environment secrets
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
