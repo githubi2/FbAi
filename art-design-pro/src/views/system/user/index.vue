@@ -133,8 +133,16 @@
         {
           prop: 'createTime',
           label: '创建时间',
-          minWidth: 140,
-          sortable: true
+          minWidth: 160,
+          sortable: true,
+          formatter: (row) => {
+            const val = row.createTime
+            if (!val) return '—'
+            const d = new Date(val)
+            if (isNaN(d.getTime())) return val
+            const pad = (n: number) => String(n).padStart(2, '0')
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+          }
         },
         {
           prop: 'operation',
