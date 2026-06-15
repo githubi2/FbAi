@@ -58,7 +58,32 @@ export class MenuProcessor {
    */
   private async processBackendMenu(): Promise<AppRouteRecord[]> {
     const list = await fetchGetMenuList()
-    return this.filterEmptyMenus(list)
+    // 后端返回 MenuTree 格式（flat fields），需转换为 AppRouteRecord 格式（nested meta）
+    const transformed = this.transformBackendMenu(list as any[])
+    return this.filterEmptyMenus(transformed)
+  }
+
+  /**
+   * 将后端 MenuTree 格式转换为 AppRouteRecord 格式
+   * 后端: { id, name, path, component, title, icon, hidden, children }
+   * 前端: { id, name, path, component, meta: { title, icon, isHide, isIframe }, children }
+   */
+  private transformBackendMenu(menus: any[]): AppRouteRecord[] {
+    return menus.map((menu) => ({
+      id: menu.id,
+      name: menu.name,
+      path: menu.path || '',
+      component: menu.component || '',
+      meta: {
+        title: menu.title || menu.name || '',
+        icon: menu.icon || '',
+        isHide: menu.hidden || false,
+        isIframe: false
+      },
+      children: menu.children?.length
+        ? this.transformBackendMenu(menu.children)
+        : undefined
+    })) as AppRouteRecord[]
   }
 
   /**
