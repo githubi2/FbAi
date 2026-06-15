@@ -18,18 +18,6 @@
             @keyup.enter="handleSubmit"
             style="margin-top: 25px"
           >
-            <ElFormItem prop="account">
-              <ElSelect v-model="formData.account" @change="setupAccount">
-                <ElOption
-                  v-for="account in accounts"
-                  :key="account.key"
-                  :label="account.label"
-                  :value="account.key"
-                >
-                  <span>{{ account.label }}</span>
-                </ElOption>
-              </ElSelect>
-            </ElFormItem>
             <ElFormItem prop="username">
               <ElInput
                 class="custom-height"
@@ -128,39 +116,16 @@
     formKey.value++
   })
 
-  type AccountKey = 'super' | 'admin' | 'user'
+  const formData = reactive({
+    username: '',
+    password: '',
+    rememberPassword: true
+  })
 
-  export interface Account {
-    key: AccountKey
-    label: string
-    userName: string
-    password: string
-    roles: string[]
-  }
-
-  const accounts = computed<Account[]>(() => [
-    {
-      key: 'super',
-      label: t('login.roles.super'),
-      userName: 'Super',
-      password: '123456',
-      roles: ['R_SUPER']
-    },
-    {
-      key: 'admin',
-      label: t('login.roles.admin'),
-      userName: 'Admin',
-      password: '123456',
-      roles: ['R_ADMIN']
-    },
-    {
-      key: 'user',
-      label: t('login.roles.user'),
-      userName: 'User',
-      password: '123456',
-      roles: ['R_USER']
-    }
-  ])
+  const rules = computed<FormRules>(() => ({
+    username: [{ required: true, message: t('login.placeholder.username'), trigger: 'blur' }],
+    password: [{ required: true, message: t('login.placeholder.password'), trigger: 'blur' }]
+  }))
 
   const dragVerify = ref()
 
@@ -173,31 +138,7 @@
   const systemName = AppConfig.systemInfo.name
   const formRef = ref<FormInstance>()
 
-  const formData = reactive({
-    account: '',
-    username: '',
-    password: '',
-    rememberPassword: true
-  })
-
-  const rules = computed<FormRules>(() => ({
-    username: [{ required: true, message: t('login.placeholder.username'), trigger: 'blur' }],
-    password: [{ required: true, message: t('login.placeholder.password'), trigger: 'blur' }]
-  }))
-
   const loading = ref(false)
-
-  onMounted(() => {
-    setupAccount('super')
-  })
-
-  // 设置账号
-  const setupAccount = (key: AccountKey) => {
-    const selectedAccount = accounts.value.find((account: Account) => account.key === key)
-    formData.account = key
-    formData.username = selectedAccount?.userName ?? ''
-    formData.password = selectedAccount?.password ?? ''
-  }
 
   // 登录
   const handleSubmit = async () => {
@@ -275,10 +216,4 @@
 
 <style scoped>
   @import './style.css';
-</style>
-
-<style lang="scss" scoped>
-  :deep(.el-select__wrapper) {
-    height: 40px !important;
-  }
 </style>

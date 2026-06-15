@@ -1,5 +1,7 @@
 package config
 
+import "os"
+
 // Config 应用配置
 type Config struct {
 	Server   ServerConfig
@@ -9,14 +11,14 @@ type Config struct {
 
 // ServerConfig 服务配置
 type ServerConfig struct {
-	Port string // 默认 :8080
+	Port string // 默认 :9090
 	Mode string // debug | release | test
 }
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Driver string // mysql | postgres | sqlite
-	DSN    string // 连接字符串
+	Driver string // postgres
+	DSN    string // 连接字符串，从环境变量 DATABASE_URL 读取
 }
 
 // JWTConfig JWT配置
@@ -26,18 +28,31 @@ type JWTConfig struct {
 }
 
 // DefaultConfig 默认配置
+// 数据库 DSN 优先从环境变量 DATABASE_URL 读取，fallback 为空（需要在 .env 中配置）
 func DefaultConfig() *Config {
+	dsn := os.Getenv("DATABASE_URL")
+
+	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		port = ":9090"
+	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "art-design-server-secret-key"
+	}
+
 	return &Config{
 		Server: ServerConfig{
-			Port: ":9090",
-			Mode: "debug",
+			Port: port,
+			Mode: os.Getenv("GIN_MODE"),
 		},
 		Database: DatabaseConfig{
-			Driver: "sqlite",
-			DSN:    "data.db",
+			Driver: "postgres",
+			DSN:    dsn,
 		},
 		JWT: JWTConfig{
-			Secret:     "art-design-server-secret-key",
+			Secret:     jwtSecret,
 			ExpireHour: 24,
 		},
 	}

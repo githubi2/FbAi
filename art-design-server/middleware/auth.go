@@ -7,39 +7,38 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/githubi2/FbAi/art-design-server/services"
 	"golang.org/x/crypto/bcrypt"
 )
-
-// 模拟用户存储（开发阶段用内存数据，后续替换为数据库）
-var mockUsers = map[string]struct {
-	Password string
-	UserID   uint
-	Role     string
-}{
-	"admin": {Password: hashPassword("admin123"), UserID: 1, Role: "R_SUPER"},
-	"user":  {Password: hashPassword("user123"), UserID: 2, Role: "R_USER"},
-}
-
-func hashPassword(pwd string) string {
-	hash, _ := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
-	return string(hash)
-}
 
 // CheckPassword 校验密码
 func CheckPassword(hashed, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
 }
 
-// ValidateUser 验证用户名密码
+// HashPassword 生成密码哈希
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+// ValidateUser 验证用户名密码（使用 PostgreSQL）
 func ValidateUser(userName, password string) (uint, string, bool) {
-	user, exists := mockUsers[userName]
-	if !exists {
+	// 从数据库获取用户认证信息
+	userID, hashedPassword, role, err := services.DefaultUserService.GetPasswordHash(userName)
+	if err != nil {
 		return 0, "", false
 	}
-	if !CheckPassword(user.Password, password) {
+
+	// 验证密码
+	if !CheckPassword(hashedPassword, password) {
 		return 0, "", false
 	}
-	return user.UserID, user.Role, true
+
+	return userID, role, true
 }
 
 // 简单的 Token 存储（生产环境用 JWT）

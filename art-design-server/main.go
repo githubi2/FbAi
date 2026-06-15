@@ -4,15 +4,29 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/joho/godotenv"
+
 	"github.com/githubi2/FbAi/art-design-server/config"
+	"github.com/githubi2/FbAi/art-design-server/db"
 	"github.com/githubi2/FbAi/art-design-server/routes"
 )
 
 func main() {
+	// 加载 .env 文件（如果存在）
+	_ = godotenv.Load()
+
 	cfg := config.DefaultConfig()
 
-	// 设置 Gin 运行模式
-	// gin.SetMode(cfg.Server.Mode)
+	// 连接数据库
+	if cfg.Database.DSN != "" {
+		if err := db.Connect(cfg.Database.DSN); err != nil {
+			log.Printf("[WARN] 数据库连接失败: %v（将使用内存数据）", err)
+		} else {
+			defer db.Close()
+		}
+	} else {
+		log.Println("[WARN] DATABASE_URL 未配置，将使用内存数据")
+	}
 
 	router := routes.SetupRouter()
 
