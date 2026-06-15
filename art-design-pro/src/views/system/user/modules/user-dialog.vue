@@ -2,16 +2,65 @@
   <ElDialog
     v-model="dialogVisible"
     :title="dialogType === 'add' ? '添加用户' : '编辑用户'"
-    width="30%"
+    width="36%"
     align-center
   >
-    <ElForm ref="formRef" :model="formData" :rules="rules" label-width="80px">
+    <ElForm ref="formRef" :model="formData" :rules="rules" label-width="90px">
       <ElFormItem label="用户名" prop="userName">
         <ElInput v-model="formData.userName" placeholder="请输入用户名" />
       </ElFormItem>
+
+      <!-- 新增时的密码 -->
       <ElFormItem v-if="dialogType === 'add'" label="密码" prop="password">
-        <ElInput v-model="formData.password" type="password" placeholder="请输入密码" />
+        <ElInput
+          v-model="formData.password"
+          :type="showPassword ? 'text' : 'password'"
+          placeholder="请输入密码"
+        >
+          <template #suffix>
+            <ElButton link type="primary" size="small" @click="generatePassword('password')">
+              生成
+            </ElButton>
+            <ElButton link size="small" @click="showPassword = !showPassword">
+              <ArtSvgIcon :icon="showPassword ? 'ri:eye-off-line' : 'ri:eye-line'" />
+            </ElButton>
+          </template>
+        </ElInput>
       </ElFormItem>
+
+      <!-- 编辑时的修改密码 -->
+      <template v-if="dialogType === 'edit'">
+        <ElFormItem label="新密码" prop="newPassword">
+          <ElInput
+            v-model="formData.newPassword"
+            :type="showNewPassword ? 'text' : 'password'"
+            placeholder="留空则不修改密码"
+          >
+            <template #suffix>
+              <ElButton link type="primary" size="small" @click="generatePassword('newPassword')">
+                生成
+              </ElButton>
+              <ElButton link size="small" @click="showNewPassword = !showNewPassword">
+                <ArtSvgIcon :icon="showNewPassword ? 'ri:eye-off-line' : 'ri:eye-line'" />
+              </ElButton>
+            </template>
+          </ElInput>
+        </ElFormItem>
+        <ElFormItem v-if="formData.newPassword" label="确认密码" prop="confirmPassword">
+          <ElInput
+            v-model="formData.confirmPassword"
+            :type="showConfirmPassword ? 'text' : 'password'"
+            placeholder="请再次输入新密码"
+          >
+            <template #suffix>
+              <ElButton link size="small" @click="showConfirmPassword = !showConfirmPassword">
+                <ArtSvgIcon :icon="showConfirmPassword ? 'ri:eye-off-line' : 'ri:eye-line'" />
+              </ElButton>
+            </template>
+          </ElInput>
+        </ElFormItem>
+      </template>
+
       <ElFormItem label="角色" prop="roleId">
         <ElSelect v-model="formData.roleId" placeholder="请选择角色">
           <ElOption
@@ -65,12 +114,28 @@
   // 角色列表
   const roleList = ref<Api.SystemManage.RoleListItem[]>([])
 
+  // 密码可见性
+  const showPassword = ref(false)
+  const showNewPassword = ref(false)
+  const showConfirmPassword = ref(false)
+
   const formData = reactive({
     userName: '',
     password: '',
+    newPassword: '',
+    confirmPassword: '',
     roleId: undefined as number | undefined,
     status: true
   })
+
+  // 确认密码校验
+  const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
+    if (value && value !== formData.newPassword) {
+      callback(new Error('两次输入的密码不一致'))
+    } else {
+      callback()
+    }
+  }
 
   const rules: FormRules = {
     userName: [
@@ -81,12 +146,31 @@
       { required: true, message: '请输入密码', trigger: 'blur' },
       { min: 6, max: 32, message: '长度在 6 到 32 个字符', trigger: 'blur' }
     ],
+    newPassword: [
+      { min: 6, max: 32, message: '长度在 6 到 32 个字符', trigger: 'blur' }
+    ],
+    confirmPassword: [
+      { validator: validateConfirmPassword, trigger: 'blur' }
+    ],
     roleId: [
       { required: true, message: '请选择角色', trigger: 'change' }
     ]
   }
 
-  // 加载角色列表（标准化后端 id → roleId）
+  // 生成随机密码
+  const generatePassword = (field: 'password' | 'newPassword') => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$'
+    let pwd = ''
+    for (let i = 0; i < 12; i++) {
+      pwd += chars[Math.floor(Math.random() * chars.length)]
+    }
+    formData[field] = pwd
+    if (field === 'newPassword') {
+      formData.confirmPassword = pwd
+    }
+  }
+
+  // 加载角色列表
   const loadRoles = async () => {
     try {
       const res = await fetchGetRoleList()
@@ -98,7 +182,6 @@
       } else if ((res as any)?.list) {
         rawList = (res as any).list
       }
-      // 标准化字段：后端返回 id，前端类型用 roleId
       roleList.value = rawList.map((item: any) => ({
         ...item,
         roleId: item.id ?? item.roleId
@@ -115,9 +198,15 @@
     Object.assign(formData, {
       userName: isEdit && row ? row.userName || '' : '',
       password: '',
+      newPassword: '',
+      confirmPassword: '',
       roleId: isEdit && row ? (row.roleId || row.role_id) : undefined,
       status: isEdit && row ? (row.status === 1 || row.status === '1' || row.status === true) : true
     })
+    // 重置密码可见性
+    showPassword.value = false
+    showNewPassword.value = false
+    showConfirmPassword.value = false
   }
 
   watch(
@@ -139,7 +228,12 @@
 
     await formRef.value.validate((valid) => {
       if (valid) {
-        emit('submit', { ...formData })
+        const data = { ...formData }
+        // 编辑时：如果有新密码，用 newPassword 作为 password 传给后端
+        if (props.type === 'edit' && data.newPassword) {
+          data.password = data.newPassword
+        }
+        emit('submit', data)
       }
     })
   }

@@ -232,10 +232,15 @@
       } else {
         const userId = currentUserData.value.id
         if (userId) {
-          await fetchUpdateUser(userId, {
+          const updateData: any = {
             status: formData.status ? 1 : 0,
             roleId: formData.roleId
-          })
+          }
+          // 如果填了新密码，传给后端
+          if (formData.password || formData.newPassword) {
+            updateData.password = formData.password || formData.newPassword
+          }
+          await fetchUpdateUser(userId, updateData)
           ElMessage.success('更新成功')
         }
       }

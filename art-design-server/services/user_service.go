@@ -154,13 +154,29 @@ func (s *UserService) Update(req models.UpdateUserRequest) (*models.User, error)
 		}
 	}
 
-	querySQL := `
-		UPDATE users SET nick_name=$1, email=$2, phone=$3, avatar=$4, status=$5, role_id=$6, role_name=$7, updated_at=$8
-		WHERE id=$9
-	`
-	_, err := db.Pool.Exec(ctx, querySQL, req.NickName, req.Email, req.Phone, req.Avatar, req.Status, req.RoleID, roleName, now, req.ID)
-	if err != nil {
-		return nil, errors.New("更新用户失败")
+	// 修改密码（如果提供了新密码）
+	if req.Password != "" {
+		hashedPassword, err := crypto.HashPassword(req.Password)
+		if err != nil {
+			return nil, errors.New("密码加密失败")
+		}
+		querySQL := `
+			UPDATE users SET password=$1, nick_name=$2, email=$3, phone=$4, avatar=$5, status=$6, role_id=$7, role_name=$8, updated_at=$9
+			WHERE id=$10
+		`
+		_, err = db.Pool.Exec(ctx, querySQL, hashedPassword, req.NickName, req.Email, req.Phone, req.Avatar, req.Status, req.RoleID, roleName, now, req.ID)
+		if err != nil {
+			return nil, errors.New("更新用户失败")
+		}
+	} else {
+		querySQL := `
+			UPDATE users SET nick_name=$1, email=$2, phone=$3, avatar=$4, status=$5, role_id=$6, role_name=$7, updated_at=$8
+			WHERE id=$9
+		`
+		_, err := db.Pool.Exec(ctx, querySQL, req.NickName, req.Email, req.Phone, req.Avatar, req.Status, req.RoleID, roleName, now, req.ID)
+		if err != nil {
+			return nil, errors.New("更新用户失败")
+		}
 	}
 
 	return s.GetByID(req.ID)

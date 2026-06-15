@@ -39,6 +39,7 @@ type UpdateUserRequest struct {
 	Avatar   string `json:"avatar" binding:"max=256"`
 	Status   int    `json:"status"`
 	RoleID   uint   `json:"roleId"`
+	Password string `json:"password"` // 可选：非空时修改密码
 }
 
 // LoginRequest 登录请求
