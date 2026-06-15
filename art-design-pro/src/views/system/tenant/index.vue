@@ -28,12 +28,10 @@
             {{ formatTime(row.createTime) }}
           </template>
         </ElTableColumn>
-        <ElTableColumn label="操作" width="160" fixed="right">
+        <ElTableColumn label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <ElSpace>
-              <ElButton type="primary" size="small" link @click="showEditDialog(row)">编辑</ElButton>
-              <ElButton type="danger" size="small" link @click="handleDelete(row)">删除</ElButton>
-            </ElSpace>
+            <ArtButtonTable type="edit" @click="showEditDialog(row)" />
+            <ArtButtonTable type="delete" @click="handleDelete(row)" />
           </template>
         </ElTableColumn>
       </ElTable>
@@ -52,6 +50,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
 import {
   fetchGetTenantList,
   fetchCreateTenant,
