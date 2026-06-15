@@ -2,8 +2,8 @@
 -- Update admin password to bcrypt
 UPDATE users SET password = '$2b$12$OlNIY4PilrcuEHNxKDRGje0kI1CNM5O7FB.FIW48OyGnejRq9TLHW' WHERE user_name = 'admin';
 
--- Update role menu permissions
-UPDATE roles SET menu_ids = '{1,2,3,4,5,6}' WHERE role_code = 'R_SUPER';
+-- Update role menu permissions (Menus name fixed, all 14 menus included)
+UPDATE roles SET menu_ids = '{1,2,3,4,5,6,7,8,9,10,11,12,13,14}' WHERE role_code = 'R_SUPER';
 UPDATE roles SET menu_ids = '{1,2,3}' WHERE role_code = 'R_ADMIN';
 UPDATE roles SET menu_ids = '{1}' WHERE role_code = 'R_USER';
 

@@ -234,6 +234,14 @@ func (s *MenuService) listFallback() []models.Menu {
 		{ID: 3, ParentID: 0, Title: "系统管理", Name: "System", Path: "/system", Component: "LAYOUT", Icon: "system", SortOrder: 2, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 4, ParentID: 3, Title: "用户管理", Name: "User", Path: "user", Component: "/system/user", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 5, ParentID: 3, Title: "角色管理", Name: "Role", Path: "role", Component: "/system/role", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
-		{ID: 6, ParentID: 3, Title: "菜单管理", Name: "Menu", Path: "menu", Component: "/system/menu", SortOrder: 3, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 6, ParentID: 3, Title: "菜单管理", Name: "Menus", Path: "menu", Component: "/system/menu", SortOrder: 3, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 7, ParentID: 3, Title: "个人中心", Name: "UserCenter", Path: "user-center", Component: "/system/user-center", SortOrder: 4, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 8, ParentID: 0, Title: "结果页", Name: "Result", Path: "/result", Component: "LAYOUT", Icon: "result", SortOrder: 3, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 9, ParentID: 8, Title: "成功页", Name: "ResultSuccess", Path: "success", Component: "/result/success", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 10, ParentID: 8, Title: "失败页", Name: "ResultFail", Path: "fail", Component: "/result/fail", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 11, ParentID: 0, Title: "异常页", Name: "Exception", Path: "/exception", Component: "LAYOUT", Icon: "exception", SortOrder: 4, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 12, ParentID: 11, Title: "403", Name: "Exception403", Path: "403", Component: "/exception/403", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 13, ParentID: 11, Title: "404", Name: "Exception404", Path: "404", Component: "/exception/404", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 14, ParentID: 11, Title: "500", Name: "Exception500", Path: "500", Component: "/exception/500", SortOrder: 3, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 	}
 }
