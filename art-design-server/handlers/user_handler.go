@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/githubi2/FbAi/art-design-server/middleware"
 	"github.com/githubi2/FbAi/art-design-server/models"
 	"github.com/githubi2/FbAi/art-design-server/services"
 )
@@ -84,6 +85,11 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, err.Error()))
 		return
+	}
+
+	// 如果管理员修改了密码，强制该用户退出登录
+	if req.Password != "" {
+		middleware.InvalidateUserSessions(uint(id))
 	}
 
 	c.JSON(http.StatusOK, models.Success(user))

@@ -44,8 +44,9 @@ type UpdateUserRequest struct {
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	UserName string `json:"userName" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	UserName   string `json:"userName" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	RememberMe bool   `json:"rememberMe"` // 记住密码：true=3天，false=24小时
 }
 
 // LoginResponse 登录响应

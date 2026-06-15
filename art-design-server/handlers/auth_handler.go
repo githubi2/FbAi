@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/githubi2/FbAi/art-design-server/middleware"
@@ -35,8 +37,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token := middleware.GenerateToken(userID)
-	refreshToken := middleware.GenerateToken(userID + 1000)
+	token := middleware.GenerateToken(userID, req.RememberMe)
+	refreshToken := fmt.Sprintf("refresh_%d_art-design-%d", userID, time.Now().UnixNano()+1)
 
 	c.JSON(http.StatusOK, models.Success(models.LoginResponse{
 		Token:        token,

@@ -158,11 +158,12 @@
       loading.value = true
 
       // 登录请求
-      const { username, password } = formData
+      const { username, password, rememberPassword } = formData
 
       const { token, refreshToken } = await fetchLogin({
         userName: username,
-        password
+        password,
+        rememberMe: rememberPassword
       })
 
       // 验证token
@@ -171,7 +172,7 @@
       }
 
       // 存储 token 和登录状态
-      userStore.setToken(token, refreshToken)
+      userStore.setToken(token, refreshToken, rememberPassword)
       userStore.setLoginStatus(true)
 
       // 登录成功处理

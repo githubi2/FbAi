@@ -66,6 +66,10 @@ export const useUserStore = defineStore(
     const accessToken = ref('')
     // 刷新令牌
     const refreshToken = ref('')
+    // 记住密码（决定 token 过期时间）
+    const rememberMe = ref(false)
+    // token 过期时间戳（毫秒）
+    const tokenExpiresAt = ref(0)
 
     // 计算属性：获取用户信息
     const getUserInfo = computed(() => info.value)
@@ -127,12 +131,31 @@ export const useUserStore = defineStore(
      * 设置令牌
      * @param newAccessToken 访问令牌
      * @param newRefreshToken 刷新令牌（可选）
+     * @param isRememberMe 是否记住密码（决定过期时间）
      */
-    const setToken = (newAccessToken: string, newRefreshToken?: string) => {
+    const setToken = (newAccessToken: string, newRefreshToken?: string, isRememberMe = false) => {
       accessToken.value = newAccessToken
       if (newRefreshToken) {
         refreshToken.value = newRefreshToken
       }
+      rememberMe.value = isRememberMe
+      // 计算过期时间：记住密码=3天，否则=24小时
+      const duration = isRememberMe ? 72 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+      tokenExpiresAt.value = Date.now() + duration
+    }
+
+    /**
+     * 检查 token 是否过期，过期则自动退出登录
+     * 在页面加载/路由跳转时调用
+     * @returns true 表示 token 有效，false 表示已过期（已触发登出）
+     */
+    const checkTokenExpiry = (): boolean => {
+      if (!accessToken.value || !isLogin.value) return true
+      if (tokenExpiresAt.value > 0 && Date.now() > tokenExpiresAt.value) {
+        logOut()
+        return false
+      }
+      return true
     }
 
     /**
@@ -159,6 +182,10 @@ export const useUserStore = defineStore(
       accessToken.value = ''
       // 清空刷新令牌
       refreshToken.value = ''
+      // 清空 记住密码
+      rememberMe.value = false
+      // 清空过期时间
+      tokenExpiresAt.value = 0
       // 注意：不清空工作台标签页，等下次登录时根据用户判断
       // 移除iframe路由缓存
       sessionStorage.removeItem('iframeRoutes')
@@ -212,6 +239,8 @@ export const useUserStore = defineStore(
       searchHistory,
       accessToken,
       refreshToken,
+      rememberMe,
+      tokenExpiresAt,
       getUserInfo,
       getSettingState,
       getWorktabState,
@@ -223,6 +252,7 @@ export const useUserStore = defineStore(
       setLockPassword,
       setToken,
       logOut,
+      checkTokenExpiry,
       checkAndClearWorktabs
     }
   },

@@ -35,6 +35,7 @@ declare namespace Api {
     interface LoginParams {
       userName: string
       password: string
+      rememberMe: boolean // 记住密码：true=3天，false=24小时
     }
 
     /** 登录响应 */

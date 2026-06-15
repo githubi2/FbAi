@@ -206,8 +206,17 @@ function handleLoginStatus(
   userStore: ReturnType<typeof useUserStore>,
   next: NavigationGuardNext
 ): boolean {
-  // 已登录或访问登录页或静态路由，直接放行
-  if (userStore.isLogin || to.path === RoutesAlias.Login || isStaticRoute(to.path)) {
+  // 已登录时检查 token 是否过期
+  if (userStore.isLogin) {
+    if (!userStore.checkTokenExpiry()) {
+      // token 已过期，checkTokenExpiry 内部已调用 logOut
+      return false
+    }
+    return true
+  }
+
+  // 访问登录页或静态路由，直接放行
+  if (to.path === RoutesAlias.Login || isStaticRoute(to.path)) {
     return true
   }
 
