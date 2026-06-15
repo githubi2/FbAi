@@ -212,6 +212,11 @@ function handleLoginStatus(
       // token 已过期，checkTokenExpiry 内部已调用 logOut
       return false
     }
+    // 已登录用户访问登录页，自动跳转首页
+    if (to.path === RoutesAlias.Login) {
+      next({ path: '/' })
+      return false
+    }
     return true
   }
 
