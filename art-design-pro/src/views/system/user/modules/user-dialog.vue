@@ -97,17 +97,23 @@
     ]
   }
 
-  // 加载角色列表
+  // 加载角色列表（标准化后端 id → roleId）
   const loadRoles = async () => {
     try {
       const res = await fetchGetRoleList()
+      let rawList: any[] = []
       if (Array.isArray(res)) {
-        roleList.value = res
+        rawList = res
       } else if ((res as any)?.records) {
-        roleList.value = (res as any).records
+        rawList = (res as any).records
       } else if ((res as any)?.list) {
-        roleList.value = (res as any).list
+        rawList = (res as any).list
       }
+      // 标准化字段：后端返回 id，前端类型用 roleId
+      roleList.value = rawList.map((item: any) => ({
+        ...item,
+        roleId: item.id ?? item.roleId
+      }))
     } catch (e) {
       console.error('加载角色列表失败:', e)
     }
