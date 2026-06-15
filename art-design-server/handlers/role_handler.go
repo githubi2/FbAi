@@ -16,7 +16,13 @@ var DefaultRoleHandler = &RoleHandler{}
 
 // List GET /api/v1/roles
 func (h *RoleHandler) List(c *gin.Context) {
-	list := services.DefaultRoleService.List()
+	var tenantID *uint
+	if tid, exists := c.Get("tenantID"); exists {
+		if t, ok := tid.(*uint); ok && t != nil {
+			tenantID = t
+		}
+	}
+	list := services.DefaultRoleService.List(tenantID)
 	c.JSON(http.StatusOK, models.Success(list))
 }
 

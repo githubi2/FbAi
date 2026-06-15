@@ -126,7 +126,7 @@ func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 	var roles []string
 	if user.RoleName != "" {
 		// 尝试通过角色名称匹配 code
-		allRoles := services.DefaultRoleService.List()
+		allRoles := services.DefaultRoleService.List(user.TenantID)
 		for _, r := range allRoles {
 			if r.RoleName == user.RoleName {
 				roles = append(roles, r.RoleCode)
@@ -157,8 +157,8 @@ func (h *AuthHandler) GetUserInfoHandler(c *gin.Context) {
 		}
 	} else {
 		// 管理员可能已切换租户上下文，从请求上下文获取
-		if tid, exists := c.Get("tenantID"); exists && tid != nil {
-			if t, ok := tid.(*uint); ok {
+		if tid, exists := c.Get("tenantID"); exists {
+			if t, ok := tid.(*uint); ok && t != nil {
 				tenantID = t
 			}
 		}

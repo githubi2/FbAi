@@ -15,17 +15,30 @@ type RoleService struct{}
 
 var DefaultRoleService = &RoleService{}
 
-// List 获取所有角色列表
-func (s *RoleService) List() []models.Role {
+// List 获取角色列表，按租户过滤
+// tenantID == nil: 全局视角，只返回全局角色(tenant_id IS NULL)
+// tenantID != nil: 租户视角，返回该租户的角色 + 全局角色
+func (s *RoleService) List(tenantID *uint) []models.Role {
 	if db.Pool == nil {
 		return s.listFallback()
 	}
 
 	ctx := context.Background()
-	querySQL := `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
-		FROM roles ORDER BY id ASC`
+	var querySQL string
+	var rows pgx.Rows
+	var err error
 
-	rows, err := db.Pool.Query(ctx, querySQL)
+	if tenantID == nil {
+		// 全局视角：只显示全局角色
+		querySQL = `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
+			FROM roles WHERE tenant_id IS NULL ORDER BY id ASC`
+		rows, err = db.Pool.Query(ctx, querySQL)
+	} else {
+		// 租户视角：显示该租户的角色 + 全局角色
+		querySQL = `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
+			FROM roles WHERE tenant_id IS NULL OR tenant_id = $1 ORDER BY id ASC`
+		rows, err = db.Pool.Query(ctx, querySQL, *tenantID)
+	}
 	if err != nil {
 		return s.listFallback()
 	}

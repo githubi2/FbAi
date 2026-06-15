@@ -172,8 +172,8 @@ func (h *TenantHandler) Current(c *gin.Context) {
 		}
 	} else {
 		// 管理员：从请求上下文获取
-		if tid, exists := c.Get("tenantID"); exists && tid != nil {
-			if t, ok := tid.(*uint); ok {
+		if tid, exists := c.Get("tenantID"); exists {
+			if t, ok := tid.(*uint); ok && t != nil {
 				tenantID = t
 			}
 		}
