@@ -117,9 +117,9 @@ func (s *TenantService) Create(req models.CreateTenantRequest) (*models.Tenant, 
 	}
 
 	// 2. 创建租户管理员角色（role_code 包含租户ID避免冲突）
-	// 分配菜单: Dashboard(1), System(2), Console(3), User(4), Role(5)
+	// 分配菜单: Dashboard(1), System(2), Console(3), User(4)
 	adminRoleCode := fmt.Sprintf("T%d_R_ADMIN", tenantID)
-	adminMenuIDs := "{1,2,3,4,5}"
+	adminMenuIDs := "{1,2,3,4}"
 	var adminRoleID uint
 	err = tx.QueryRow(ctx,
 		`INSERT INTO roles (role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at)
