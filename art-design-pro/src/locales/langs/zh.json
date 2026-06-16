@@ -48,20 +48,11 @@
   "setting": {
     "menuType": {
       "title": "菜单布局",
-      "list": [
-        "垂直",
-        "水平",
-        "混合",
-        "双列"
-      ]
+      "list": ["垂直", "水平", "混合", "双列"]
     },
     "theme": {
       "title": "主题风格",
-      "list": [
-        "浅色",
-        "深色",
-        "系统"
-      ]
+      "list": ["浅色", "深色", "系统"]
     },
     "menu": {
       "title": "菜单风格"
@@ -71,17 +62,11 @@
     },
     "box": {
       "title": "盒子样式",
-      "list": [
-        "边框",
-        "阴影"
-      ]
+      "list": ["边框", "阴影"]
     },
     "container": {
       "title": "容器宽度",
-      "list": [
-        "铺满",
-        "定宽"
-      ]
+      "list": ["铺满", "定宽"]
     },
     "basics": {
       "title": "基础配置",
@@ -127,14 +112,8 @@
   "notice": {
     "title": "通知",
     "btnRead": "标为已读",
-    "bar": [
-      "通知",
-      "消息",
-      "代办"
-    ],
-    "text": [
-      "暂无"
-    ],
+    "bar": ["通知", "消息", "代办"],
+    "text": ["暂无"],
     "viewAll": "查看全部"
   },
   "worktab": {
@@ -270,6 +249,22 @@
       "user": "用户管理",
       "role": "角色管理",
       "menu": "菜单管理"
+    },
+    "adAccount": {
+      "title": "广告管理",
+      "list": "FB账户列表",
+      "connectFb": "连接 Facebook",
+      "disconnectFb": "断开连接",
+      "connected": "已连接",
+      "notConnected": "未连接",
+      "connecting": "连接中...",
+      "fbUser": "FB 用户",
+      "expiresAt": "授权过期",
+      "refreshAccounts": "刷新账户",
+      "confirmDisconnect": "确定要断开 Facebook 连接吗？",
+      "disconnectSuccess": "已断开连接",
+      "connectFirst": "请先连接 Facebook",
+      "noAccounts": "暂无广告账户"
     }
   },
   "table": {

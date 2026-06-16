@@ -39,6 +39,9 @@ func SetupRouter() *gin.Engine {
 			auth.POST("/login", handlers.DefaultAuthHandler.Login)
 		}
 
+		// Facebook OAuth 回调（无需登录，由 Facebook 重定向调用）
+		v1.GET("/fb/callback", handlers.DefaultFbHandler.Callback)
+
 		// 需要登录的接口
 		authorized := v1.Group("")
 		authorized.Use(middleware.AuthRequired())
@@ -96,6 +99,15 @@ func SetupRouter() *gin.Engine {
 				menus.POST("", middleware.RequirePermission("system:menu:create"), handlers.DefaultMenuHandler.Create)
 				menus.PUT("/:id", middleware.RequirePermission("system:menu:edit"), handlers.DefaultMenuHandler.Update)
 				menus.DELETE("/:id", middleware.RequirePermission("system:menu:delete"), handlers.DefaultMenuHandler.Delete)
+			}
+
+			// ==================== Facebook 广告管理 ====================
+			fb := authorized.Group("/fb")
+			{
+				fb.GET("/auth-url", handlers.DefaultFbHandler.AuthURL)
+				fb.GET("/status", handlers.DefaultFbHandler.ConnectionStatus)
+				fb.GET("/ad-accounts", handlers.DefaultFbHandler.AdAccounts)
+				fb.DELETE("/disconnect", handlers.DefaultFbHandler.Disconnect)
 			}
 		}
 	}

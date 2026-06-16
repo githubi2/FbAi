@@ -48,20 +48,11 @@
   "setting": {
     "menuType": {
       "title": "Menu Layout",
-      "list": [
-        "Vertical",
-        "Horizontal",
-        "Mixed",
-        "Dual"
-      ]
+      "list": ["Vertical", "Horizontal", "Mixed", "Dual"]
     },
     "theme": {
       "title": "Theme Style",
-      "list": [
-        "Light",
-        "Dark",
-        "System"
-      ]
+      "list": ["Light", "Dark", "System"]
     },
     "menu": {
       "title": "Menu Style"
@@ -71,17 +62,11 @@
     },
     "box": {
       "title": "Box Style",
-      "list": [
-        "Border",
-        "Shadow"
-      ]
+      "list": ["Border", "Shadow"]
     },
     "container": {
       "title": "Container Width",
-      "list": [
-        "Full",
-        "Boxed"
-      ]
+      "list": ["Full", "Boxed"]
     },
     "basics": {
       "title": "Basic Config",
@@ -127,14 +112,8 @@
   "notice": {
     "title": "Notice",
     "btnRead": "Mark as read",
-    "bar": [
-      "Notice",
-      "Message",
-      "Todo"
-    ],
-    "text": [
-      "No"
-    ],
+    "bar": ["Notice", "Message", "Todo"],
+    "text": ["No"],
     "viewAll": "View all"
   },
   "worktab": {
@@ -270,6 +249,22 @@
       "user": "User Manage",
       "role": "Role Manage",
       "menu": "Menu Manage"
+    },
+    "adAccount": {
+      "title": "Ad Management",
+      "list": "FB Account List",
+      "connectFb": "Connect Facebook",
+      "disconnectFb": "Disconnect",
+      "connected": "Connected",
+      "notConnected": "Not Connected",
+      "connecting": "Connecting...",
+      "fbUser": "FB User",
+      "expiresAt": "Expires",
+      "refreshAccounts": "Refresh",
+      "confirmDisconnect": "Are you sure you want to disconnect?",
+      "disconnectSuccess": "Disconnected successfully",
+      "connectFirst": "Please connect Facebook first",
+      "noAccounts": "No ad accounts"
     }
   },
   "table": {
