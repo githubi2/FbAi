@@ -82,8 +82,14 @@ func (h *AuthHandler) GetMenus(c *gin.Context) {
 		return
 	}
 
-	// 超级管理员看到所有菜单
+	// 超级管理员按角色 menu_ids 过滤（不显示租户系统管理）
 	if user.RoleName == "超级管理员" || user.RoleName == "R_SUPER" {
+		role, err := services.DefaultRoleService.GetByID(user.RoleID)
+		if err == nil {
+			tree := services.DefaultMenuService.TreeByIDs(role.MenuIDs)
+			c.JSON(http.StatusOK, models.Success(tree))
+			return
+		}
 		tree := services.DefaultMenuService.Tree()
 		c.JSON(http.StatusOK, models.Success(tree))
 		return

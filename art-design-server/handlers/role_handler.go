@@ -55,6 +55,15 @@ func (h *RoleHandler) Create(c *gin.Context) {
 		req.Status = 1
 	}
 
+	// 从上下文获取 tenantID（租户管理员创建角色时自动绑定）
+	if req.TenantID == nil {
+		if tid, exists := c.Get("tenantID"); exists {
+			if t, ok := tid.(*uint); ok && t != nil {
+				req.TenantID = t
+			}
+		}
+	}
+
 	role, err := services.DefaultRoleService.Create(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, err.Error()))
@@ -122,7 +131,31 @@ func (h *RoleHandler) GetMenus(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户的角色菜单权限（用于租户上下文中过滤 allMenus）
+	var userMenuIDs []int64
+	if userID, exists := c.Get("userID"); exists {
+		if uid, ok := userID.(uint); ok {
+			userMenuIDs = services.DefaultRoleService.GetUserMenuIDs(uid)
+		}
+	}
+
 	allMenus := services.DefaultMenuService.List()
+
+	// 如果当前用户有角色菜单限制（租户上下文），过滤 allMenus
+	if len(userMenuIDs) > 0 {
+		userMenuSet := make(map[int64]bool)
+		for _, mid := range userMenuIDs {
+			userMenuSet[mid] = true
+		}
+		var filtered []models.Menu
+		for _, m := range allMenus {
+			if userMenuSet[int64(m.ID)] {
+				filtered = append(filtered, m)
+			}
+		}
+		allMenus = filtered
+	}
+
 	c.JSON(http.StatusOK, models.Success(gin.H{
 		"allMenus":  allMenus,
 		"roleMenus": role.MenuIDs,

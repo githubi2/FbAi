@@ -15,29 +15,51 @@ type UserService struct{}
 
 var DefaultUserService = &UserService{}
 
-// List 分页查询用户列表
-func (s *UserService) List(page, size int, keyword string) ([]models.User, int64) {
+// List 分页查询用户列表，按租户过滤
+func (s *UserService) List(tenantID *uint, page, size int, keyword string) ([]models.User, int64) {
 	if db.Pool == nil {
 		return s.listFallback(page, size, keyword)
 	}
 
 	ctx := context.Background()
 
-	// 查询总数
+	// 查询总数（带租户过滤）
 	var total int64
-	countSQL := `SELECT COUNT(*) FROM users WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%')`
-	_ = db.Pool.QueryRow(ctx, countSQL, keyword).Scan(&total)
+	var countSQL string
+	var countArgs []interface{}
+	if tenantID == nil {
+		countSQL = `SELECT COUNT(*) FROM users WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%')`
+		countArgs = []interface{}{keyword}
+	} else {
+		countSQL = `SELECT COUNT(*) FROM users WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%') AND tenant_id = $2`
+		countArgs = []interface{}{keyword, *tenantID}
+	}
+	_ = db.Pool.QueryRow(ctx, countSQL, countArgs...).Scan(&total)
 
-	// 分页查询
+	// 分页查询（带租户过滤）
 	offset := (page - 1) * size
-	querySQL := `
-		SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, tenant_id, created_at, updated_at
-		FROM users
-		WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%')
-		ORDER BY id ASC
-		LIMIT $2 OFFSET $3
-	`
-	rows, err := db.Pool.Query(ctx, querySQL, keyword, size, offset)
+	var querySQL string
+	var queryArgs []interface{}
+	if tenantID == nil {
+		querySQL = `
+			SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, tenant_id, created_at, updated_at
+			FROM users
+			WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%')
+			ORDER BY id ASC
+			LIMIT $2 OFFSET $3
+		`
+		queryArgs = []interface{}{keyword, size, offset}
+	} else {
+		querySQL = `
+			SELECT id, user_name, nick_name, email, phone, avatar, status, role_id, role_name, tenant_id, created_at, updated_at
+			FROM users
+			WHERE ($1 = '' OR user_name ILIKE '%' || $1 || '%' OR nick_name ILIKE '%' || $1 || '%') AND tenant_id = $2
+			ORDER BY id ASC
+			LIMIT $3 OFFSET $4
+		`
+		queryArgs = []interface{}{keyword, *tenantID, size, offset}
+	}
+	rows, err := db.Pool.Query(ctx, querySQL, queryArgs...)
 	if err != nil {
 		return []models.User{}, 0
 	}

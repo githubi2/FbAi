@@ -28,7 +28,15 @@ func (h *UserHandler) List(c *gin.Context) {
 		size = 10
 	}
 
-	list, total := services.DefaultUserService.List(page, size, keyword)
+	// 获取租户上下文（用于租户数据隔离）
+	var tenantID *uint
+	if tid, exists := c.Get("tenantID"); exists {
+		if t, ok := tid.(*uint); ok && t != nil {
+			tenantID = t
+		}
+	}
+
+	list, total := services.DefaultUserService.List(tenantID, page, size, keyword)
 	c.JSON(http.StatusOK, models.PageSuccess(list, total, page, size))
 }
 

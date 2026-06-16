@@ -34,9 +34,9 @@ func (s *RoleService) List(tenantID *uint) []models.Role {
 			FROM roles WHERE tenant_id IS NULL ORDER BY id ASC`
 		rows, err = db.Pool.Query(ctx, querySQL)
 	} else {
-		// 租户视角：显示该租户的角色 + 全局角色
+		// 租户视角：只显示该租户的角色（不含全局角色）
 		querySQL = `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
-			FROM roles WHERE tenant_id IS NULL OR tenant_id = $1 ORDER BY id ASC`
+			FROM roles WHERE tenant_id = $1 ORDER BY id ASC`
 		rows, err = db.Pool.Query(ctx, querySQL, *tenantID)
 	}
 	if err != nil {
@@ -218,6 +218,28 @@ func (s *RoleService) Delete(id uint) error {
 		return errors.New("角色不存在")
 	}
 	return nil
+}
+
+// GetUserMenuIDs 根据用户ID获取其角色的菜单ID列表
+func (s *RoleService) GetUserMenuIDs(userID uint) []int64 {
+	if db.Pool == nil {
+		return []int64{}
+	}
+
+	ctx := context.Background()
+	querySQL := `SELECT r.menu_ids FROM roles r 
+		JOIN users u ON u.role_id = r.id 
+		WHERE u.id = $1`
+
+	var menuIDs []int64
+	err := db.Pool.QueryRow(ctx, querySQL, userID).Scan(&menuIDs)
+	if err != nil {
+		return []int64{}
+	}
+	if menuIDs == nil {
+		menuIDs = []int64{}
+	}
+	return menuIDs
 }
 
 func isUniqueViolation(err error) bool {

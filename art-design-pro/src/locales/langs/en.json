@@ -264,6 +264,12 @@
       "userCenter": "User Center",
       "menu": "Menu Manage",
       "tenant": "Tenant Manage"
+    },
+    "tenantSystem": {
+      "title": "Tenant Management",
+      "user": "User Manage",
+      "role": "Role Manage",
+      "menu": "Menu Manage"
     }
   },
   "table": {
