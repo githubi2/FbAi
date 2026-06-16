@@ -29,12 +29,12 @@ func (s *RoleService) List(tenantID *uint) []models.Role {
 	var err error
 
 	if tenantID == nil {
-		// 全局视角：只显示全局角色
+		// 全局视角：显示所有角色
 		querySQL = `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
-			FROM roles WHERE tenant_id IS NULL ORDER BY id ASC`
+			FROM roles ORDER BY id ASC`
 		rows, err = db.Pool.Query(ctx, querySQL)
 	} else {
-		// 租户视角：只显示该租户的角色（不含全局角色）
+		// 租户视角：只显示该租户的角色
 		querySQL = `SELECT id, role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at 
 			FROM roles WHERE tenant_id = $1 ORDER BY id ASC`
 		rows, err = db.Pool.Query(ctx, querySQL, *tenantID)

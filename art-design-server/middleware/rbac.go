@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -91,11 +92,14 @@ func TenantContext() gin.HandlerFunc {
 		// 静默处理未使用的变量
 		_ = id
 
-		// 设置 PostgreSQL RLS 参数
-		if tenantID != nil && db.Pool != nil {
+		// 设置 PostgreSQL RLS 参数（必须每次都设置，避免连接池复用旧值）
+		if db.Pool != nil {
+			val := ""
+			if tenantID != nil {
+				val = fmt.Sprintf("%d", *tenantID)
+			}
 			_, _ = db.Pool.Exec(c.Request.Context(),
-				"SELECT set_config('app.current_tenant_id', $1::text, true)",
-				tenantID,
+				"SELECT set_config('app.current_tenant_id', $1, true)", val,
 			)
 		}
 
