@@ -65,6 +65,15 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// 从上下文获取 tenantID（租户管理员创建用户时自动绑定）
+	if req.TenantID == nil {
+		if tid, exists := c.Get("tenantID"); exists {
+			if t, ok := tid.(*uint); ok && t != nil {
+				req.TenantID = t
+			}
+		}
+	}
+
 	user, err := services.DefaultUserService.Create(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, err.Error()))
@@ -79,6 +88,11 @@ func (h *UserHandler) Update(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "无效的ID"))
+		return
+	}
+
+	// 租户隔离检查：验证目标用户与请求用户属于同一租户
+	if !h.checkTenantAccess(c, uint(id)) {
 		return
 	}
 
@@ -111,12 +125,48 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// 租户隔离检查：验证目标用户与请求用户属于同一租户
+	if !h.checkTenantAccess(c, uint(id)) {
+		return
+	}
+
 	if err := services.DefaultUserService.Delete(uint(id)); err != nil {
 		c.JSON(http.StatusNotFound, models.Error(models.CodeNotFound, err.Error()))
 		return
 	}
 
 	c.JSON(http.StatusOK, models.SuccessWithMsg("删除成功", nil))
+}
+
+// checkTenantAccess 验证租户隔离：目标用户必须与请求用户属于同一租户
+// 超级管理员（tenantID=nil）可访问所有用户
+func (h *UserHandler) checkTenantAccess(c *gin.Context, targetUserID uint) bool {
+	// 获取请求用户的租户上下文
+	var requestTenantID *uint
+	if tid, exists := c.Get("tenantID"); exists {
+		if t, ok := tid.(*uint); ok && t != nil {
+			requestTenantID = t
+		}
+	}
+
+	// 超级管理员（无租户上下文）可访问所有用户
+	if requestTenantID == nil {
+		return true
+	}
+
+	// 租户用户只能操作同租户的用户
+	targetUser, err := services.DefaultUserService.GetByID(targetUserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, models.Error(models.CodeNotFound, "用户不存在"))
+		return false
+	}
+
+	if targetUser.TenantID == nil || *targetUser.TenantID != *requestTenantID {
+		c.JSON(http.StatusForbidden, models.Error(models.CodeForbidden, "无权操作其他租户的用户"))
+		return false
+	}
+
+	return true
 }
 
 // BatchDelete POST /api/v1/users/batch-delete
