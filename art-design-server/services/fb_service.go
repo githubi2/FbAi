@@ -471,7 +471,7 @@ func (s *FbService) GetAdAccounts(userID uint, tenantID *uint) (*models.FbAdAcco
 
 	// 获取广告账户
 	adAccResp, err := s.fbGet(
-		fmt.Sprintf("/%s/adaccounts", s.graphVer),
+		fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 		map[string]string{
 			"fields":       "id,name,account_status,currency,business{name}",
 			"access_token": token.AccessToken,
