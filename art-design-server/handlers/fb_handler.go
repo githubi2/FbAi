@@ -116,6 +116,7 @@ func (h *FbHandler) Callback(c *gin.Context) {
 	}
 
 	// 回调成功，返回 HTML 成功页面（不重定向到前端，因为用户可能在不同浏览器授权）
+	// 样式与后台 ArtResultPage 结果页保持一致
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -125,31 +126,90 @@ func (h *FbHandler) Callback(c *gin.Context) {
 <title>Facebook 授权成功</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-         display: flex; justify-content: center; align-items: center;
-         min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-  .card { background: #fff; border-radius: 16px; padding: 48px 40px;
-          text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-          max-width: 420px; width: 90%; }
-  .icon { width: 72px; height: 72px; margin: 0 auto 24px;
-          background: #e6f7ed; border-radius: 50%;
-          display: flex; align-items: center; justify-content: center; }
-  .icon svg { width: 36px; height: 36px; }
-  h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 12px; font-weight: 600; }
-  p { font-size: 15px; color: #666; margin-bottom: 24px; line-height: 1.6; }
-  .tip { font-size: 13px; color: #999; margin-top: 16px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f5f7fa;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .page-content {
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+    padding: 64px 20px;
+  }
+  .icon-circle {
+    width: 88px;
+    height: 88px;
+    margin: 0 auto;
+    background: #19BE6B;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-circle svg {
+    width: 56px;
+    height: 56px;
+    stroke: #fff;
+    stroke-width: 3;
+    fill: none;
+  }
+  .title {
+    margin-top: 32px;
+    font-size: 30px;
+    font-weight: 500;
+    color: #323251;
+    line-height: 1.4;
+  }
+  .msg {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #7987a1;
+    line-height: 1.6;
+  }
+  .info-box {
+    margin-top: 30px;
+    border-radius: 6px;
+    background: rgba(242, 244, 245, 0.8);
+    padding: 22px 30px;
+    text-align: left;
+  }
+  .info-box p {
+    display: flex;
+    align-items: flex-start;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #808695;
+    line-height: 1.7;
+  }
+  .info-box .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    min-width: 6px;
+    background: #19BE6B;
+    border-radius: 50%;
+    margin-right: 10px;
+    margin-top: 7px;
+  }
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="icon">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#52c41a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<div class="page-content">
+  <div class="icon-circle">
+    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="20 6 9 17 4 12"></polyline>
     </svg>
   </div>
-  <h1>授权成功！</h1>
-  <p>Facebook 广告账户授权已完成。<br>您可以关闭此页面，回到后台管理系统查看广告账户。</p>
-  <p class="tip">此页面可安全关闭</p>
+  <h1 class="title">授权成功！</h1>
+  <p class="msg">Facebook 广告账户授权已完成。</p>
+  <div class="info-box">
+    <p><span class="dot"></span>您可以关闭此页面，回到后台管理系统查看广告账户。</p>
+    <p><span class="dot"></span>此页面可安全关闭</p>
+  </div>
 </div>
 </body>
 </html>`)
@@ -198,15 +258,102 @@ func (h *FbHandler) ShortRedirect(c *gin.Context) {
 	authURL, err := services.DefaultFbService.ResolveShortToken(token)
 	if err != nil {
 		c.Header("Content-Type", "text/html; charset=utf-8")
+		// 样式与后台 ArtResultPage 失败页保持一致
 		c.String(http.StatusGone, `<!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><title>链接已过期</title>
-<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#fff3f0}
-.card{text-align:center;padding:40px;max-width:400px}
-h1{color:#cf1322;font-size:20px}p{color:#666;margin-top:12px}</style>
-</head><body><div class="card">
-<h1>⚠ 链接已过期</h1><p>授权链接有效期 5 分钟，请回到后台重新生成。</p>
-</div></body></html>`)
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>链接已过期</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f5f7fa;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .page-content {
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+    padding: 64px 20px;
+  }
+  .icon-circle {
+    width: 88px;
+    height: 88px;
+    margin: 0 auto;
+    background: #ED4014;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-circle svg {
+    width: 56px;
+    height: 56px;
+    stroke: #fff;
+    stroke-width: 3;
+    fill: none;
+  }
+  .title {
+    margin-top: 32px;
+    font-size: 30px;
+    font-weight: 500;
+    color: #323251;
+    line-height: 1.4;
+  }
+  .msg {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #7987a1;
+    line-height: 1.6;
+  }
+  .info-box {
+    margin-top: 30px;
+    border-radius: 6px;
+    background: rgba(242, 244, 245, 0.8);
+    padding: 22px 30px;
+    text-align: left;
+  }
+  .info-box p {
+    display: flex;
+    align-items: flex-start;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #808695;
+    line-height: 1.7;
+  }
+  .info-box .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    min-width: 6px;
+    background: #ED4014;
+    border-radius: 50%;
+    margin-right: 10px;
+    margin-top: 7px;
+  }
+</style>
+</head>
+<body>
+<div class="page-content">
+  <div class="icon-circle">
+    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </div>
+  <h1 class="title">链接已过期</h1>
+  <p class="msg">授权链接有效期 5 分钟，请回到后台重新生成。</p>
+  <div class="info-box">
+    <p><span class="dot"></span>请返回后台管理系统，重新点击"连接 Facebook"获取新的授权链接。</p>
+  </div>
+</div>
+</body>
+</html>`)
 		return
 	}
 
