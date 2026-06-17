@@ -152,9 +152,11 @@ const {
         label: t('menus.adAccount.columns.timezone'),
         width: 90,
         formatter: (row: FbAdAccountDetail) => {
-          if (row.timezoneOffset === 0 && !row.timezoneName) return '—'
-          const sign = row.timezoneOffset >= 0 ? '+' : ''
-          return `UTC${sign}${row.timezoneOffset}`
+          const offset = row.timezoneOffset
+          if (offset == null) return row.timezoneName || '—'
+          if (offset === 0 && !row.timezoneName) return '—'
+          const sign = offset >= 0 ? '+' : ''
+          return `UTC${sign}${offset}`
         }
       },
       {
