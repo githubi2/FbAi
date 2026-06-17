@@ -84,14 +84,13 @@
       <div class="admin-dialog-content">
         <!-- 步骤1：选择要删除的管理员 -->
         <div class="admin-step">
-          <div class="admin-step-indicator">
+          <div class="admin-step-head">
             <span class="admin-step-num">1</span>
-            <div class="admin-step-line"></div>
+            <span class="admin-step-label">
+              {{ $t('menus.adAccount.adminDialogStep1') }}
+            </span>
           </div>
           <div class="admin-step-body">
-            <div class="admin-step-label">
-              {{ $t('menus.adAccount.adminDialogStep1') }}
-            </div>
             <ElCheckboxGroup v-model="selectedAdmins" class="admin-checklist">
               <ElCheckbox
                 v-for="name in curOtherAdminNames"
@@ -111,14 +110,14 @@
         </div>
         <!-- 步骤2：执行时间间隔 -->
         <div class="admin-step">
-          <div class="admin-step-indicator">
+          <div class="admin-step-head">
             <span class="admin-step-num">2</span>
-            <div class="admin-step-line"></div>
+            <span class="admin-step-label">
+              {{ $t('menus.adAccount.adminDialogStep2') }}
+            </span>
           </div>
           <div class="admin-step-body">
-            <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
-              {{ $t('menus.adAccount.adminDialogStep2') }}
-            </ElCheckbox>
+            <ElCheckbox v-model="useDefaultInterval" />
           </div>
         </div>
       </div>
@@ -617,26 +616,40 @@
     min-height: 120px;
 
     .admin-step {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
+      position: relative;
+      padding-left: 36px;
+
+      // 连接线：圆圈下方到下一步骤
+      &::before {
+        content: '';
+        position: absolute;
+        left: 11px;
+        top: 28px;
+        bottom: 0;
+        width: 2px;
+        background-color: var(--el-border-color);
+      }
+
+      &:last-child::before {
+        display: none;
+      }
 
       &:not(:last-child) {
-        margin-bottom: 0;
+        padding-bottom: 24px;
       }
     }
 
-    .admin-step-indicator {
-      align-self: stretch;
+    .admin-step-head {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      flex-shrink: 0;
-      width: 28px;
-      padding-top: 2px;
+      gap: 12px;
+      margin-bottom: 8px;
     }
 
     .admin-step-num {
+      position: absolute;
+      left: 0;
+      top: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -651,35 +664,15 @@
       flex-shrink: 0;
     }
 
-    .admin-step-line {
-      flex: 1;
-      width: 2px;
-      min-height: 12px;
-      background-color: var(--el-border-color);
-      margin-top: 4px;
-    }
-
-    .admin-step:last-child .admin-step-line {
-      flex: 0;
-      min-height: 0;
-      background-color: transparent;
+    .admin-step-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--el-text-color-primary);
+      line-height: 24px;
     }
 
     .admin-step-body {
-      flex: 1;
       min-width: 0;
-      padding-bottom: 20px;
-
-      .admin-step-label {
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--el-text-color-primary);
-        margin-bottom: 10px;
-      }
-    }
-
-    .admin-step:last-child .admin-step-body {
-      padding-bottom: 0;
     }
 
     .admin-checklist {
