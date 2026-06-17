@@ -84,25 +84,40 @@
       <div class="admin-dialog-content">
         <!-- 步骤1：选择要删除的管理员 -->
         <div class="admin-step">
-          <div class="admin-step-label">
-            {{ $t('menus.adAccount.adminDialogStep1') }}
+          <div class="admin-step-indicator">
+            <span class="admin-step-num">1</span>
           </div>
-          <ElCheckboxGroup v-model="selectedAdmins" class="admin-checklist">
-            <ElCheckbox v-for="name in curOtherAdminNames" :key="name" :label="name" :value="name">
-              {{ name }}
-            </ElCheckbox>
-          </ElCheckboxGroup>
-          <ElEmpty
-            v-if="curOtherAdminNames.length === 0"
-            :description="$t('menus.adAccount.adminDialogNoOther')"
-            :image-size="60"
-          />
+          <div class="admin-step-body">
+            <div class="admin-step-label">
+              {{ $t('menus.adAccount.adminDialogStep1') }}
+            </div>
+            <ElCheckboxGroup v-model="selectedAdmins" class="admin-checklist">
+              <ElCheckbox
+                v-for="name in curOtherAdminNames"
+                :key="name"
+                :label="name"
+                :value="name"
+              >
+                {{ name }}
+              </ElCheckbox>
+            </ElCheckboxGroup>
+            <ElEmpty
+              v-if="curOtherAdminNames.length === 0"
+              :description="$t('menus.adAccount.adminDialogNoOther')"
+              :image-size="60"
+            />
+          </div>
         </div>
         <!-- 步骤2：执行时间间隔 -->
         <div class="admin-step">
-          <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
-            {{ $t('menus.adAccount.adminDialogStep2') }}
-          </ElCheckbox>
+          <div class="admin-step-indicator">
+            <span class="admin-step-num">2</span>
+          </div>
+          <div class="admin-step-body">
+            <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
+              {{ $t('menus.adAccount.adminDialogStep2') }}
+            </ElCheckbox>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -600,7 +615,59 @@
     min-height: 120px;
 
     .admin-step {
-      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+
+      &:not(:last-child) {
+        margin-bottom: 0;
+      }
+    }
+
+    .admin-step-indicator {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+      width: 28px;
+
+      // 连接线：从圆圈底部到下个圆圈的顶部
+      &::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 24px;
+        background-color: var(--el-border-color);
+      }
+    }
+
+    // 最后一步不画线
+    .admin-step:last-child .admin-step-indicator::after {
+      display: none;
+    }
+
+    .admin-step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: var(--el-color-primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .admin-step-body {
+      flex: 1;
+      min-width: 0;
+      padding-bottom: 20px;
 
       .admin-step-label {
         font-size: 14px;
@@ -608,6 +675,10 @@
         color: var(--el-text-color-primary);
         margin-bottom: 10px;
       }
+    }
+
+    .admin-step:last-child .admin-step-body {
+      padding-bottom: 0;
     }
 
     .admin-checklist {
