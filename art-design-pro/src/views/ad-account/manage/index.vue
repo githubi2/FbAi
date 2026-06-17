@@ -43,14 +43,6 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
 
-  const formatDateOnly = (val: string) => {
-    if (!val) return '—'
-    const d = new Date(val)
-    if (isNaN(d.getTime())) return val
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  }
-
   const formatCurrency = (val: number, currency: string) => {
     const formatted = Math.abs(val).toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -190,10 +182,10 @@
           minWidth: 130,
           formatter: (row: FbAdAccountDetail) => formatCurrency(row.balance, row.currency)
         },
-        // 9. 门槛（FB无对应字段，用花费限额近似）
+        // 9. 账户限额（日限额）
         {
           prop: 'spendCap',
-          label: t('menus.adAccount.columns.threshold'),
+          label: t('menus.adAccount.columns.dailyLimit'),
           minWidth: 130,
           formatter: (row: FbAdAccountDetail) => {
             if (row.spendCap === 0)
@@ -201,19 +193,7 @@
             return formatCurrency(row.spendCap, row.currency)
           }
         },
-        // 10. 日限额（FB已弃用daily_spend_limit，用spendCap作为日限额参考）
-        {
-          prop: 'dailySpendLimit',
-          label: t('menus.adAccount.columns.dailyLimit'),
-          minWidth: 120,
-          formatter: (row: FbAdAccountDetail) => {
-            if (row.dailySpendLimit > 0) return formatCurrency(row.dailySpendLimit, row.currency)
-            // 回退到 spendCap
-            if (row.spendCap > 0) return formatCurrency(row.spendCap, row.currency)
-            return h('span', { style: { color: '#999' } }, t('menus.adAccount.unlimited'))
-          }
-        },
-        // 11. 总花费
+        // 10. 总花费
         {
           prop: 'amountSpent',
           label: t('menus.adAccount.columns.totalSpend'),
@@ -234,17 +214,7 @@
           minWidth: 150,
           formatter: (row: FbAdAccountDetail) => formatPaymentMethod(row.fundingSource)
         },
-        // 14. 账单期
-        {
-          prop: 'nextBillDate',
-          label: t('menus.adAccount.columns.billPeriod'),
-          minWidth: 120,
-          formatter: (row: FbAdAccountDetail) => {
-            if (row.nextBillDate) return formatDateOnly(row.nextBillDate)
-            return '—'
-          }
-        },
-        // 15. 锁定原因
+        // 12. 锁定原因
         {
           prop: 'disableReason',
           label: t('menus.adAccount.columns.lockReason'),
