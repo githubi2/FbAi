@@ -941,7 +941,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		adAccResp, err := s.fbGet(
 			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 			map[string]string{
-				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name,role},created_time",
+				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name},created_time",
 				"access_token": accessToken,
 				"limit":        "100",
 			},
@@ -987,22 +987,18 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 	hiddenAdmins := 0
 	if users, ok := acc["users"].(map[string]interface{}); ok {
 		if userData, ok := users["data"].([]interface{}); ok {
-			for _, u := range userData {
+			for i, u := range userData {
 				if userMap, ok := u.(map[string]interface{}); ok {
-					role := getInt(userMap, "role") // FB role IDs
 					uname := getString(userMap, "name")
-					// role 1001 = Admin, 1002 = Advertiser, 1003 = Analyst
-					// 只显示第一个管理员作为主管理员
-					if role == 1001 && adminName == "" {
+					// 第一个用户作为主管理员
+					if i == 0 {
 						adminName = uname
 					}
-					// 所有非可见的都算隐藏
 				}
 			}
 			// 计算隐藏管理员数：总用户数 - 1（显示的主管理员）
-			totalUsers := len(userData)
-			if totalUsers > 1 {
-				hiddenAdmins = totalUsers - 1
+			if len(userData) > 1 {
+				hiddenAdmins = len(userData) - 1
 			}
 		}
 	}

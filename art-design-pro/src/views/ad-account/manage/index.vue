@@ -49,7 +49,6 @@ const formatDate = (val: string) => {
 }
 
 const formatCurrency = (val: number, currency: string) => {
-  if (val === 0) return '—'
   const formatted = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return `${currency || 'USD'} ${formatted}`
 }
