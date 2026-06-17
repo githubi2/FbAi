@@ -67,8 +67,9 @@ type FbAdAccountDetail struct {
 	SpendCap              float64 `json:"spendCap"`              // 花费限额
 	Balance               float64 `json:"balance"`               // 余额
 	DailySpendLimit       float64 `json:"dailySpendLimit"`       // 日限额
-	AdminName             string  `json:"adminName"`             // 主管理员名称
-	HiddenAdmins          int     `json:"hiddenAdmins"`          // 隐藏管理员个数
+	AdminName             string   `json:"adminName"`             // 主管理员名称
+	HiddenAdmins          int      `json:"hiddenAdmins"`          // 隐藏管理员个数
+	OtherAdminNames       []string `json:"otherAdminNames"`       // 其他管理员名称列表（排除主管理员）
 	TimezoneName          string  `json:"timezoneName"`          // 时区名称（如 Asia/Taipei）
 	TimezoneOffset        float64 `json:"timezoneOffset"`        // UTC偏移小时（如 8）
 	CountryCode           string  `json:"countryCode"`           // 国家编码

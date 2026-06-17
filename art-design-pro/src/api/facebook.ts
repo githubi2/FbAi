@@ -144,6 +144,7 @@ export interface FbAdAccountDetail {
   dailySpendLimit: number
   adminName: string
   hiddenAdmins: number
+  otherAdminNames: string[]
   timezoneName: string
   timezoneOffset: number
   countryCode: string

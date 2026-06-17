@@ -1149,6 +1149,7 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 	// 解析管理员信息
 	adminName := ""
 	hiddenAdmins := 0
+	otherAdminNames := []string{}
 	if users, ok := acc["users"].(map[string]interface{}); ok {
 		if userData, ok := users["data"].([]interface{}); ok {
 			for i, u := range userData {
@@ -1157,6 +1158,8 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 					// 第一个用户作为主管理员
 					if i == 0 {
 						adminName = uname
+					} else {
+						otherAdminNames = append(otherAdminNames, uname)
 					}
 				}
 			}
@@ -1249,6 +1252,7 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 		DailySpendLimit:    dailySpendLimit,
 		AdminName:          adminName,
 		HiddenAdmins:       hiddenAdmins,
+		OtherAdminNames:    otherAdminNames,
 		TimezoneName:       timezoneName,
 		TimezoneOffset:     timezoneOffset,
 		CountryCode:        countryCode,

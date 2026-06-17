@@ -80,13 +80,47 @@
     </ElDialog>
 
     <!-- 管理员详情弹窗 -->
-    <ElDialog v-model="adminDialogVisible" :title="adminDialogTitle" width="600px" destroy-on-close>
+    <ElDialog v-model="adminDialogVisible" :title="adminDialogTitle" width="550px" destroy-on-close>
       <div class="admin-dialog-content">
-        <!-- TODO: 内容待完善 -->
+        <ElEmpty
+          v-if="curOtherAdminNames.length === 0"
+          :description="$t('menus.adAccount.adminDialogNoOther')"
+        />
+        <template v-else>
+          <!-- 步骤1：选择要删除的管理员 -->
+          <div class="admin-step">
+            <div class="admin-step-label">
+              {{ $t('menus.adAccount.adminDialogStep1') }}
+            </div>
+            <ElCheckboxGroup v-model="selectedAdmins" class="admin-checklist">
+              <ElCheckbox
+                v-for="name in curOtherAdminNames"
+                :key="name"
+                :label="name"
+                :value="name"
+              >
+                {{ name }}
+              </ElCheckbox>
+            </ElCheckboxGroup>
+          </div>
+          <!-- 步骤2：执行时间间隔 -->
+          <div class="admin-step">
+            <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
+              {{ $t('menus.adAccount.adminDialogStep2') }}
+            </ElCheckbox>
+          </div>
+        </template>
       </div>
       <template #footer>
         <div class="dialog-footer">
           <ElButton @click="adminDialogVisible = false">{{ $t('common.cancel') }}</ElButton>
+          <ElButton
+            type="primary"
+            :disabled="selectedAdmins.length === 0"
+            @click="handleAdminDelete"
+          >
+            {{ $t('menus.adAccount.adminDialogConfirm') }}
+          </ElButton>
         </div>
       </template>
     </ElDialog>
@@ -97,7 +131,16 @@
   import { h, ref, reactive } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
-  import { ElTag, ElEmpty, ElTooltip, ElButton, ElDialog, ElMessage } from 'element-plus'
+  import {
+    ElTag,
+    ElEmpty,
+    ElTooltip,
+    ElButton,
+    ElDialog,
+    ElMessage,
+    ElCheckbox,
+    ElCheckboxGroup
+  } from 'element-plus'
   import type { FbAdAccountDetail, FbPaymentRecord } from '@/api/facebook'
   import { fetchFbAdAccountsDetail, fetchFbPaymentHistory } from '@/api/facebook'
 
@@ -506,6 +549,9 @@
   const adminDialogTitle = ref('')
   const curAdminAccount = ref<FbAdAccountDetail | null>(null)
   const curAdminType = ref<'admin' | 'hidden'>('admin')
+  const curOtherAdminNames = ref<string[]>([])
+  const selectedAdmins = ref<string[]>([])
+  const useDefaultInterval = ref(true)
 
   const showAdminDetail = (row: FbAdAccountDetail, type: 'admin' | 'hidden') => {
     // 标签值为 0 时直接提示，不弹窗
@@ -524,12 +570,23 @@
     }
     curAdminAccount.value = row
     curAdminType.value = type
+    curOtherAdminNames.value = row.otherAdminNames || []
+    selectedAdmins.value = []
+    useDefaultInterval.value = true
     if (type === 'admin') {
-      adminDialogTitle.value = `${row.name || row.accountId || '—'} — 管理员`
+      adminDialogTitle.value = `${row.name || row.accountId || '—'} — ${t('menus.adAccount.admin')}`
     } else {
-      adminDialogTitle.value = `${row.name || row.accountId || '—'} — 隐藏管理员`
+      adminDialogTitle.value = `${row.name || row.accountId || '—'} — ${t('menus.adAccount.hiddenAdmin')}`
     }
     adminDialogVisible.value = true
+  }
+
+  const handleAdminDelete = () => {
+    // TODO: 调用后端 API 删除选中的管理员
+    ElMessage.success(
+      t('menus.adAccount.adminDeleteSuccess', { count: selectedAdmins.value.length })
+    )
+    adminDialogVisible.value = false
   }
 </script>
 
@@ -551,9 +608,31 @@
 
   .admin-dialog-content {
     min-height: 120px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--el-text-color-secondary);
+
+    .admin-step {
+      margin-bottom: 16px;
+
+      .admin-step-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--el-text-color-primary);
+        margin-bottom: 10px;
+      }
+    }
+
+    .admin-checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 4px;
+
+      :deep(.el-checkbox) {
+        margin-right: 0;
+      }
+    }
+
+    .admin-interval-check {
+      margin-top: 4px;
+    }
   }
 </style>
