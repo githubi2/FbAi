@@ -195,6 +195,6 @@ export interface FbPaymentListResponse {
 export function fetchFbPaymentHistory(adAccountId: string) {
   return request.get<FbPaymentListResponse>({
     url: `/api/v1/fb/ad-accounts/${adAccountId}/payments`,
-    showErrorMessage: true
+    showErrorMessage: false
   })
 }

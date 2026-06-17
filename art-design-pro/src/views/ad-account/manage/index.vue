@@ -37,7 +37,7 @@
   import { h, ref } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
-  import { ElTag, ElEmpty, ElTooltip, ElButton, ElDialog } from 'element-plus'
+  import { ElTag, ElEmpty, ElTooltip, ElButton, ElDialog, ElMessage } from 'element-plus'
   import type { FbAdAccountDetail, FbPaymentRecord } from '@/api/facebook'
   import { fetchFbAdAccountsDetail, fetchFbPaymentHistory } from '@/api/facebook'
 
@@ -351,8 +351,9 @@
     try {
       const result = await fetchFbPaymentHistory(row.id)
       paymentRecords.value = result.records || []
-    } catch {
+    } catch (e: any) {
       paymentRecords.value = []
+      ElMessage.warning(e?.data?.msg || '支付记录暂不可用（需要 Facebook ads_read 权限）')
     } finally {
       paymentLoading.value = false
     }
