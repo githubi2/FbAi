@@ -43,3 +43,22 @@ showAdminDetail(row, type):
 - 避免空白弹窗，零值时直接提示用户
 - 步骤式 UI 清晰引导用户操作流程
 - 后端新增 `otherAdminNames` 字段复用已有 FB API 数据（`users{name}`），无需额外 API 调用
+
+## ⚠️ 未对接
+
+**删除管理员功能尚未对接后端 API。** 当前 `handleAdminDelete()` 为占位实现：
+
+```typescript
+// src/views/ad-account/manage/index.vue
+const handleAdminDelete = () => {
+  // TODO: 调用后端 API 删除选中的管理员
+  ElMessage.success(t('menus.adAccount.adminDeleteSuccess', { count: ... }))
+  adminDialogVisible.value = false
+}
+```
+
+**待实现**：
+1. 后端新增 `DELETE /api/v1/fb/ad-accounts/:id/admins` 接口，调用 Facebook Graph API `DELETE /{ad_account_id}/users/{user_id}` 移除管理员
+2. 后端需先通过用户名获取 FB 用户 ID（当前 `otherAdminNames` 只返回名称）
+3. 前端 `handleAdminDelete` 对接该 API，传入 `accountId` + `selectedAdmins`
+4. 删除成功后刷新列表数据
