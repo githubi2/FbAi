@@ -133,6 +133,7 @@ export interface FbAdAccountDetail {
   fbOwnerName: string
   fbOwnerId: string
   businessName: string
+  ownerBusinessId: string
   accountStatus: number
   statusLabel: string
   platform: string
@@ -140,10 +141,17 @@ export interface FbAdAccountDetail {
   currency: string
   spendCap: number
   balance: number
+  dailySpendLimit: number
   adminName: string
   hiddenAdmins: number
   timezoneName: string
   timezoneOffset: number
+  countryCode: string
+  isPersonal: number
+  fundingSource: string
+  disableReason: number
+  disableReasonLabel: string
+  nextBillDate: string
   createdTime: string
 }
 

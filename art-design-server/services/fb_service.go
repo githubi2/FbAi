@@ -981,7 +981,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		adAccResp, err := s.fbGet(
 			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 			map[string]string{
-				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name},timezone_name,timezone_offset_hours_utc,created_time",
+				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,daily_spend_limit,business{name},owner,users{name},timezone_name,timezone_offset_hours_utc,created_time,funding_source_details,disable_reason,next_bill_date,business_country_code,is_personal",
 				"access_token": accessToken,
 				"limit":        "100",
 			},
@@ -1025,6 +1025,14 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 	businessName := ""
 	if business, ok := acc["business"].(map[string]interface{}); ok {
 		businessName = getString(business, "name")
+	}
+
+	// 解析所有者 BM ID
+	ownerBusinessID := ""
+	if owner, ok := acc["owner"].(map[string]interface{}); ok {
+		ownerBusinessID = getString(owner, "id")
+	} else if ownerStr, ok := acc["owner"].(string); ok {
+		ownerBusinessID = ownerStr
 	}
 
 	// 解析管理员信息
@@ -1077,25 +1085,68 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 		balance = toFloat64(v)
 	}
 
+	// 日限额
+	dailySpendLimit := 0.0
+	if v, ok := acc["daily_spend_limit"]; ok {
+		dailySpendLimit = toFloat64(v)
+	}
+
+	// 支付方法
+	fundingSource := ""
+	if fs, ok := acc["funding_source_details"].(map[string]interface{}); ok {
+		fundingSource = getString(fs, "display_string")
+		if fundingSource == "" {
+			fundingSource = getString(fs, "type")
+		}
+	}
+
+	// 锁定原因
+	disableReason := getInt(acc, "disable_reason")
+	disableReasonLabel := s.getDisableReasonLabel(disableReason)
+
+	// 下个账单日期
+	nextBillDate := getString(acc, "next_bill_date")
+
+	// 国家编码
+	countryCode := getString(acc, "business_country_code")
+	if countryCode == "" {
+		// 从时区名称推断国家编码（取 Continent/City 的 Continent 部分）
+		if timezoneName != "" {
+			// 简单映射常见时区到国家编码
+			countryCode = deriveCountryCode(timezoneName)
+		}
+	}
+
+	// 是否为个人广告账户
+	isPersonal := getInt(acc, "is_personal")
+
 	return models.FbAdAccountDetail{
-		ID:            getString(acc, "id"),
-		AccountID:     getString(acc, "account_id"),
-		Name:          getString(acc, "name"),
-		FbOwnerName:   fbUserName,
-		FbOwnerID:     fbUserID,
-		BusinessName:  businessName,
-		AccountStatus: status,
-		StatusLabel:   statusLabel,
-		Platform:      "Facebook",
-		AmountSpent:   amountSpent,
-		Currency:      getString(acc, "currency"),
-		SpendCap:      spendCap,
-		Balance:       balance,
-		AdminName:     adminName,
-		HiddenAdmins:  hiddenAdmins,
-		TimezoneName:  timezoneName,
-		TimezoneOffset: timezoneOffset,
-		CreatedTime:   createdTime,
+		ID:                 getString(acc, "id"),
+		AccountID:          getString(acc, "account_id"),
+		Name:               getString(acc, "name"),
+		FbOwnerName:        fbUserName,
+		FbOwnerID:          fbUserID,
+		BusinessName:       businessName,
+		OwnerBusinessID:    ownerBusinessID,
+		AccountStatus:      status,
+		StatusLabel:        statusLabel,
+		Platform:           "Facebook",
+		AmountSpent:        amountSpent,
+		Currency:           getString(acc, "currency"),
+		SpendCap:           spendCap,
+		Balance:            balance,
+		DailySpendLimit:    dailySpendLimit,
+		AdminName:          adminName,
+		HiddenAdmins:       hiddenAdmins,
+		TimezoneName:       timezoneName,
+		TimezoneOffset:     timezoneOffset,
+		CountryCode:        countryCode,
+		IsPersonal:         isPersonal,
+		FundingSource:      fundingSource,
+		DisableReason:      disableReason,
+		DisableReasonLabel: disableReasonLabel,
+		NextBillDate:       nextBillDate,
+		CreatedTime:        createdTime,
 	}
 }
 
@@ -1136,4 +1187,83 @@ func toFloat64(v interface{}) float64 {
 	default:
 		return 0
 	}
+}
+
+// getDisableReasonLabel 获取广告账户禁用原因的中文标签
+func (s *FbService) getDisableReasonLabel(reason int) string {
+	switch reason {
+	case 0:
+		return "无" // 未锁定
+	case 1:
+		return "广告拒登"
+	case 2:
+		return "广告被限制"
+	case 3:
+		return "账单问题"
+	case 4:
+		return "政策违规"
+	case 5:
+		return "广告账户可疑"
+	case 6:
+		return "用户请求关闭"
+	case 7:
+		return "风险支付"
+	case 8:
+		return "需要确认身份"
+	case 9:
+		return "广告主已列入黑名单"
+	default:
+		if reason > 0 {
+			return fmt.Sprintf("锁定(%d)", reason)
+		}
+		return "—"
+	}
+}
+
+// deriveCountryCode 从时区名称推断国家编码
+func deriveCountryCode(tz string) string {
+	// 常见时区→国家编码映射
+	mapping := map[string]string{
+		"America/New_York":    "US",
+		"America/Chicago":     "US",
+		"America/Denver":      "US",
+		"America/Los_Angeles": "US",
+		"America/Toronto":     "CA",
+		"America/Vancouver":   "CA",
+		"America/Mexico_City": "MX",
+		"America/Sao_Paulo":   "BR",
+		"America/Buenos_Aires": "AR",
+		"Europe/London":       "GB",
+		"Europe/Paris":        "FR",
+		"Europe/Berlin":       "DE",
+		"Europe/Madrid":       "ES",
+		"Europe/Rome":         "IT",
+		"Europe/Amsterdam":    "NL",
+		"Europe/Stockholm":    "SE",
+		"Europe/Moscow":       "RU",
+		"Asia/Shanghai":       "CN",
+		"Asia/Tokyo":          "JP",
+		"Asia/Seoul":          "KR",
+		"Asia/Taipei":         "TW",
+		"Asia/Hong_Kong":      "HK",
+		"Asia/Singapore":      "SG",
+		"Asia/Bangkok":        "TH",
+		"Asia/Ho_Chi_Minh":    "VN",
+		"Asia/Kolkata":        "IN",
+		"Asia/Dubai":          "AE",
+		"Asia/Jerusalem":      "IL",
+		"Asia/Manila":         "PH",
+		"Asia/Jakarta":        "ID",
+		"Australia/Sydney":    "AU",
+		"Pacific/Auckland":    "NZ",
+	}
+	if code, ok := mapping[tz]; ok {
+		return code
+	}
+	// 尝试从时区名称提取洲部分作为标识
+	parts := strings.SplitN(tz, "/", 2)
+	if len(parts) == 2 {
+		return parts[0] + "/" + parts[1]
+	}
+	return tz
 }
