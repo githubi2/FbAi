@@ -20,6 +20,10 @@ import { ApiStatus } from './status'
 import { HttpError, handleError, showError, showSuccess } from './error'
 import { $t } from '@/locales'
 import { BaseResponse } from '@/types'
+import { fbRateLimiter } from './rateLimiter'
+
+/** FB 接口前缀，命中此前缀的请求自动走限速队列 */
+const FB_API_PREFIX = '/api/v1/fb/'
 
 /** 请求配置常量 */
 const REQUEST_TIMEOUT = 15000
@@ -162,7 +166,7 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** 请求函数 */
+/** 请求函数 — FB 端点自动走限速队列 */
 async function request<T = any>(config: ExtendedAxiosRequestConfig): Promise<T> {
   // POST | PUT 参数自动填充
   if (
@@ -174,22 +178,35 @@ async function request<T = any>(config: ExtendedAxiosRequestConfig): Promise<T> 
     config.params = undefined
   }
 
-  try {
-    const res = await axiosInstance.request<BaseResponse<T>>(config)
+  const url = config.url || ''
+  const isFbEndpoint = url.startsWith(FB_API_PREFIX)
 
-    // 显示成功消息
-    if (config.showSuccessMessage && res.data.msg) {
-      showSuccess(res.data.msg)
-    }
+  /** 实际发起 Axios 请求的逻辑 */
+  const doRequest = async (): Promise<T> => {
+    try {
+      const res = await axiosInstance.request<BaseResponse<T>>(config)
 
-    return res.data.data as T
-  } catch (error) {
-    if (error instanceof HttpError && error.code !== ApiStatus.unauthorized) {
-      const showMsg = config.showErrorMessage !== false
-      showError(error, showMsg)
+      // 显示成功消息
+      if (config.showSuccessMessage && res.data.msg) {
+        showSuccess(res.data.msg)
+      }
+
+      return res.data.data as T
+    } catch (error) {
+      if (error instanceof HttpError && error.code !== ApiStatus.unauthorized) {
+        const showMsg = config.showErrorMessage !== false
+        showError(error, showMsg)
+      }
+      return Promise.reject(error)
     }
-    return Promise.reject(error)
   }
+
+  // FB 端点走限速队列，确保请求间隔 >= 最小间隔
+  if (isFbEndpoint) {
+    return fbRateLimiter.schedule(doRequest, url, config.signal)
+  }
+
+  return doRequest()
 }
 
 /** API方法集合 */
