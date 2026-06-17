@@ -86,6 +86,7 @@
         <div class="admin-step">
           <div class="admin-step-indicator">
             <span class="admin-step-num">1</span>
+            <div class="admin-step-line"></div>
           </div>
           <div class="admin-step-body">
             <div class="admin-step-label">
@@ -112,6 +113,7 @@
         <div class="admin-step">
           <div class="admin-step-indicator">
             <span class="admin-step-num">2</span>
+            <div class="admin-step-line"></div>
           </div>
           <div class="admin-step-body">
             <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
@@ -624,29 +626,11 @@
     }
 
     .admin-step-indicator {
-      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
       flex-shrink: 0;
       width: 28px;
-
-      // 连接线：从圆圈底部到下个圆圈的顶部
-      &::after {
-        content: '';
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 2px;
-        height: 24px;
-        background-color: var(--el-border-color);
-      }
-    }
-
-    // 最后一步不画线
-    .admin-step:last-child .admin-step-indicator::after {
-      display: none;
     }
 
     .admin-step-num {
@@ -656,12 +640,27 @@
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      background-color: var(--el-color-primary);
-      color: #fff;
+      background-color: var(--el-color-primary-light-5);
+      color: var(--el-color-primary);
       font-size: 13px;
       font-weight: 600;
       line-height: 1;
       flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .admin-step-line {
+      flex: 1;
+      width: 2px;
+      min-height: 12px;
+      background-color: var(--el-border-color);
+      margin-top: 4px;
+    }
+
+    .admin-step:last-child .admin-step-line {
+      flex: 0;
+      min-height: 0;
+      background-color: transparent;
     }
 
     .admin-step-body {
