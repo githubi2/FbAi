@@ -134,7 +134,8 @@
           formatter: (row: FbAdAccountDetail) => {
             if (row.isPersonal === 1)
               return h(ElTag, { type: 'warning', size: 'small' }, () => '个人')
-            if (row.businessName) return h(ElTag, { type: 'primary', size: 'small' }, () => '企业')
+            if (row.isPersonal === 0)
+              return h(ElTag, { type: 'primary', size: 'small' }, () => '企业')
             return h(ElTag, { type: 'info', size: 'small' }, () => '—')
           }
         },
