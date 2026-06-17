@@ -296,7 +296,18 @@
         "adAccounts": "Ad Accounts",
         "validity": "Validity",
         "authTime": "Auth Time",
-        "actions": "Actions"
+        "actions": "Actions",
+        "adAccountId": "Ad Account ID",
+        "adAccountName": "Account Name",
+        "ownerAccount": "Owner Account",
+        "bmName": "BM",
+        "platform": "Platform",
+        "totalSpend": "Total Spend",
+        "spendCap": "Spend Cap",
+        "nextBillAmount": "Next Bill Amount",
+        "admin": "Admin",
+        "hiddenAdmin": "Hidden Admins",
+        "createdTime": "Created Time"
       },
       "status": {
         "normal": "Normal",
@@ -310,6 +321,8 @@
       "daysLeft": "{days} days left",
       "expiredBadge": "Expired",
       "manage": "Ad Account Management",
+      "noAdAccounts": "No ad accounts found. Please connect Facebook and grant ad permissions first.",
+      "unlimited": "Unlimited",
       "addAccount": "Add Account",
       "editAccount": "Edit Account",
       "accountName": "Account Name",

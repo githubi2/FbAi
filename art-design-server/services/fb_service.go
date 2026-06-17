@@ -901,3 +901,190 @@ func parsePgArray(s string) []string {
 	result = append(result, strings.Trim(current.String(), `"`))
 	return result
 }
+
+// GetAdAccountsDetail 获取当前用户所有已授权FB账号下的广告账户详细信息
+func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.FbAdAccountDetailListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	s.init()
+
+	// 获取所有已授权的 token
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id, fb_user_id, fb_user_name, access_token
+		 FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询 FB token 失败: %w", err)
+	}
+	defer rows.Close()
+
+	var allAccounts []models.FbAdAccountDetail
+
+	for rows.Next() {
+		var (
+			tokenID    uint
+			fbUserID   string
+			fbUserName string
+			accessToken string
+		)
+		if err := rows.Scan(&tokenID, &fbUserID, &fbUserName, &accessToken); err != nil {
+			log.Printf("[FB] 扫描 token 行失败: %v", err)
+			continue
+		}
+
+		// 调用 Facebook API 获取该账号下的广告账户详细信息
+		adAccResp, err := s.fbGet(
+			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
+			map[string]string{
+				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name,role},created_time",
+				"access_token": accessToken,
+				"limit":        "100",
+			},
+		)
+		if err != nil {
+			log.Printf("[FB] 获取广告账户详情失败 (fbUserId=%s): %v", fbUserID, err)
+			continue
+		}
+
+		if data, ok := adAccResp["data"].([]interface{}); ok {
+			for _, item := range data {
+				if acc, ok := item.(map[string]interface{}); ok {
+					detail := s.parseAdAccountDetail(acc, fbUserID, fbUserName)
+					allAccounts = append(allAccounts, detail)
+				}
+			}
+		}
+	}
+
+	if allAccounts == nil {
+		allAccounts = []models.FbAdAccountDetail{}
+	}
+
+	return &models.FbAdAccountDetailListResponse{
+		Accounts: allAccounts,
+		Total:    len(allAccounts),
+	}, nil
+}
+
+// parseAdAccountDetail 解析单个广告账户的详细信息
+func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, fbUserName string) models.FbAdAccountDetail {
+	status := getInt(acc, "account_status")
+	statusLabel := s.getAccountStatusLabel(status)
+
+	// 解析 BM 名称
+	businessName := ""
+	if business, ok := acc["business"].(map[string]interface{}); ok {
+		businessName = getString(business, "name")
+	}
+
+	// 解析管理员信息
+	adminName := ""
+	hiddenAdmins := 0
+	if users, ok := acc["users"].(map[string]interface{}); ok {
+		if userData, ok := users["data"].([]interface{}); ok {
+			for _, u := range userData {
+				if userMap, ok := u.(map[string]interface{}); ok {
+					role := getInt(userMap, "role") // FB role IDs
+					uname := getString(userMap, "name")
+					// role 1001 = Admin, 1002 = Advertiser, 1003 = Analyst
+					// 只显示第一个管理员作为主管理员
+					if role == 1001 && adminName == "" {
+						adminName = uname
+					}
+					// 所有非可见的都算隐藏
+				}
+			}
+			// 计算隐藏管理员数：总用户数 - 1（显示的主管理员）
+			totalUsers := len(userData)
+			if totalUsers > 1 {
+				hiddenAdmins = totalUsers - 1
+			}
+		}
+	}
+
+	// 格式化创建时间
+	createdTime := ""
+	if ct, ok := acc["created_time"].(string); ok {
+		// Facebook 返回 ISO 8601 格式
+		createdTime = ct
+	}
+
+	// 获取金额相关字段
+	amountSpent := 0.0
+	if v, ok := acc["amount_spent"]; ok {
+		amountSpent = toFloat64(v)
+	}
+
+	spendCap := 0.0
+	if v, ok := acc["spend_cap"]; ok {
+		spendCap = toFloat64(v)
+	}
+
+	balance := 0.0
+	if v, ok := acc["balance"]; ok {
+		balance = toFloat64(v)
+	}
+
+	return models.FbAdAccountDetail{
+		ID:            getString(acc, "id"),
+		AccountID:     getString(acc, "account_id"),
+		Name:          getString(acc, "name"),
+		FbOwnerName:   fbUserName,
+		FbOwnerID:     fbUserID,
+		BusinessName:  businessName,
+		AccountStatus: status,
+		StatusLabel:   statusLabel,
+		Platform:      "Facebook",
+		AmountSpent:   amountSpent,
+		Currency:      getString(acc, "currency"),
+		SpendCap:      spendCap,
+		Balance:       balance,
+		AdminName:     adminName,
+		HiddenAdmins:  hiddenAdmins,
+		CreatedTime:   createdTime,
+	}
+}
+
+// getAccountStatusLabel 获取广告账户状态的中文标签
+func (s *FbService) getAccountStatusLabel(status int) string {
+	switch status {
+	case 1:
+		return "活跃"
+	case 2:
+		return "已禁用"
+	case 3:
+		return "未结算"
+	case 7:
+		return "待审核"
+	case 9:
+		return "非活跃"
+	case 100:
+		return "待关闭"
+	case 101:
+		return "已关闭"
+	default:
+		return fmt.Sprintf("未知(%d)", status)
+	}
+}
+
+// toFloat64 将 interface{} 转换为 float64
+func toFloat64(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	case string:
+		var f float64
+		fmt.Sscanf(val, "%f", &f)
+		return f
+	case json.Number:
+		f, _ := val.Float64()
+		return f
+	default:
+		return 0
+	}
+}

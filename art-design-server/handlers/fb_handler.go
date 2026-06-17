@@ -344,3 +344,23 @@ func (h *FbHandler) RefreshStats(c *gin.Context) {
 func parseUint(s string) (uint64, error) {
 	return strconv.ParseUint(s, 10, 64)
 }
+
+// ==================== 广告账户管理 ====================
+
+// AdAccountsDetail GET /api/v1/fb/ad-accounts/detail — 获取所有已授权FB账号下的广告账户详细信息
+func (h *FbHandler) AdAccountsDetail(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetAdAccountsDetail(userID, tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(result))
+}

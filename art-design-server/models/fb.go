@@ -38,7 +38,7 @@ type FbConnectionStatusResponse struct {
 	Scopes              []string `json:"scopes"`
 }
 
-// FbAdAccount 广告账户
+// FbAdAccount 广告账户（基础信息）
 type FbAdAccount struct {
 	ID            string `json:"id"`
 	AccountID     string `json:"accountId"`
@@ -46,6 +46,32 @@ type FbAdAccount struct {
 	AccountStatus int    `json:"accountStatus"` // 1=active, 2=disabled, 3=unsettled, 7=pending, 9=inactive
 	Currency      string `json:"currency"`
 	BusinessName  string `json:"businessName"`
+}
+
+// FbAdAccountDetail 广告账户详细信息（含消耗/限额/管理员等）
+type FbAdAccountDetail struct {
+	ID             string  `json:"id"`             // act_xxx 格式
+	AccountID      string  `json:"accountId"`      // 数字ID
+	Name           string  `json:"name"`           // 账户名称
+	FbOwnerName    string  `json:"fbOwnerName"`    // 所属FB账号名称
+	FbOwnerID      string  `json:"fbOwnerId"`      // 所属FB账号ID
+	BusinessName   string  `json:"businessName"`   // 所属BM名称
+	AccountStatus  int     `json:"accountStatus"`  // 状态码
+	StatusLabel    string  `json:"statusLabel"`    // 状态显示文本
+	Platform       string  `json:"platform"`       // 平台（facebook）
+	AmountSpent    float64 `json:"amountSpent"`    // 总消耗金额
+	Currency       string  `json:"currency"`       // 货币
+	SpendCap       float64 `json:"spendCap"`       // 限额
+	Balance        float64 `json:"balance"`        // 余额/下笔扣款额度
+	AdminName      string  `json:"adminName"`      // 主管理员名称
+	HiddenAdmins   int     `json:"hiddenAdmins"`   // 隐藏管理员个数
+	CreatedTime    string  `json:"createdTime"`    // 创建时间
+}
+
+// FbAdAccountDetailListResponse 广告账户详细列表响应
+type FbAdAccountDetailListResponse struct {
+	Accounts []FbAdAccountDetail `json:"accounts"`
+	Total    int                 `json:"total"`
 }
 
 // FbBusinessManager Facebook Business Manager

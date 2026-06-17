@@ -296,7 +296,18 @@
         "adAccounts": "广告户",
         "validity": "授权有效期",
         "authTime": "授权时间",
-        "actions": "操作"
+        "actions": "操作",
+        "adAccountId": "广告账户ID",
+        "adAccountName": "账户名称",
+        "ownerAccount": "所属账户",
+        "bmName": "所属BM",
+        "platform": "平台",
+        "totalSpend": "总消耗金额",
+        "spendCap": "限额",
+        "nextBillAmount": "下笔扣款额度",
+        "admin": "管理员",
+        "hiddenAdmin": "隐藏管理员",
+        "createdTime": "创建时间"
       },
       "status": {
         "normal": "正常",
@@ -310,6 +321,8 @@
       "daysLeft": "剩余 {days} 天",
       "expiredBadge": "已过期",
       "manage": "广告账户管理",
+      "noAdAccounts": "暂无广告账户数据，请先连接 Facebook 并授权广告权限",
+      "unlimited": "无限制",
       "addAccount": "新增账户",
       "editAccount": "编辑账户",
       "accountName": "账户名称",

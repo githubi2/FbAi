@@ -121,3 +121,39 @@ export function fetchFbRefreshStats(id: number) {
     url: `/api/v1/fb/accounts/${id}/refresh`
   })
 }
+
+// ==================== 广告账户管理 ====================
+
+/** 广告账户详细信息（管理页面用） */
+export interface FbAdAccountDetail {
+  id: string
+  accountId: string
+  name: string
+  fbOwnerName: string
+  fbOwnerId: string
+  businessName: string
+  accountStatus: number
+  statusLabel: string
+  platform: string
+  amountSpent: number
+  currency: string
+  spendCap: number
+  balance: number
+  adminName: string
+  hiddenAdmins: number
+  createdTime: string
+}
+
+/** 广告账户详细列表响应 */
+export interface FbAdAccountDetailListResponse {
+  accounts: FbAdAccountDetail[]
+  total: number
+}
+
+/** 获取所有已授权FB账号下的广告账户详细信息 */
+export function fetchFbAdAccountsDetail() {
+  return request.get<FbAdAccountDetailListResponse>({
+    url: '/api/v1/fb/ad-accounts/detail',
+    showErrorMessage: true
+  })
+}

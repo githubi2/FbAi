@@ -116,6 +116,7 @@ func SetupRouter() *gin.Engine {
 				fb.GET("/auth-url", handlers.DefaultFbHandler.AuthURL)
 				fb.GET("/status", handlers.DefaultFbHandler.ConnectionStatus)
 				fb.GET("/ad-accounts", handlers.DefaultFbHandler.AdAccounts)
+				fb.GET("/ad-accounts/detail", handlers.DefaultFbHandler.AdAccountsDetail)
 				fb.DELETE("/disconnect", handlers.DefaultFbHandler.Disconnect)
 
 				// 多账号改造 — 新增路由
