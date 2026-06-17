@@ -12,8 +12,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
+	"golang.org/x/net/proxy"
 	"github.com/githubi2/FbAi/art-design-server/db"
 	"github.com/githubi2/FbAi/art-design-server/models"
 )
@@ -22,30 +24,67 @@ import (
 type FbService struct {
 	appID       string
 	appSecret   string
+	configID    string // 企业版 Facebook 登录的配置 ID
 	redirectURI string
 	graphAPI    string
 	graphVer    string
+	httpClient  *http.Client
 }
 
 var DefaultFbService = &FbService{}
 
-// init 从环境变量加载 Facebook 配置
+// 短链接存储（内存中，5 分钟后自动过期）
+var (
+	shortTokensMu sync.RWMutex
+	shortTokens   = make(map[string]shortTokenEntry)
+)
+
+type shortTokenEntry struct {
+	authURL   string
+	createdAt time.Time
+}
+
+// init 从环境变量加载 Facebook 配置，含代理支持
 func (s *FbService) init() {
 	if s.appID == "" {
 		s.appID = os.Getenv("FB_APP_ID")
 		s.appSecret = os.Getenv("FB_APP_SECRET")
+		s.configID = os.Getenv("FB_CONFIG_ID")
 		s.redirectURI = os.Getenv("FB_REDIRECT_URI")
 		s.graphAPI = "https://graph.facebook.com"
 		s.graphVer = os.Getenv("FB_GRAPH_VERSION")
 		if s.graphVer == "" {
 			s.graphVer = "v22.0"
 		}
+
+		// 初始化 HTTP 客户端（支持 SOCKS5 代理）
+		s.httpClient = &http.Client{Timeout: 30 * time.Second}
+		fbProxy := os.Getenv("FB_PROXY")
+		if fbProxy == "" {
+			fbProxy = os.Getenv("HTTPS_PROXY")
+		}
+		if fbProxy != "" {
+			proxyURL, err := url.Parse(fbProxy)
+			if err == nil {
+				if proxyURL.Scheme == "socks5" {
+					dialer, err := proxy.SOCKS5("tcp", proxyURL.Host, nil, proxy.Direct)
+					if err == nil {
+						s.httpClient.Transport = &http.Transport{Dial: dialer.Dial}
+						log.Printf("[FB] 使用 SOCKS5 代理: %s", proxyURL.Host)
+					}
+				} else {
+					s.httpClient.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+					log.Printf("[FB] 使用 HTTP 代理: %s", fbProxy)
+				}
+			}
+		}
 	}
 }
 
 // GetAuthURL 生成 Facebook OAuth 授权链接
 // state 参数用于 CSRF 防护并携带 userID，回调时验证
-func (s *FbService) GetAuthURL(userID uint) (string, error) {
+// tenantID: 租户 ID，nil 表示超级管理员
+func (s *FbService) GetAuthURL(userID uint, tenantID *uint) (string, error) {
 	s.init()
 
 	if s.appID == "" || s.appSecret == "" {
@@ -62,54 +101,115 @@ func (s *FbService) GetAuthURL(userID uint) (string, error) {
 	// state 格式: hex(userID):nonce
 	state := fmt.Sprintf("%x:%s", userID, nonce)
 
-	// 存储 state 用于回调验证（5分钟有效）
+	// 存储 state 用于回调验证（5分钟有效），同时存储 tenant_id
 	if db.Pool != nil {
 		ctx := context.Background()
 		_, err := db.Pool.Exec(ctx,
-			`INSERT INTO fb_tokens (user_id, access_token, status, created_at, updated_at)
-			 VALUES ($1, $2, 0, NOW(), NOW())
+			`INSERT INTO fb_tokens (user_id, tenant_id, access_token, status, created_at, updated_at)
+			 VALUES ($1, $2, $3, 0, NOW(), NOW())
 			 ON CONFLICT (user_id) DO UPDATE
-			 SET access_token = $2, status = 0, updated_at = NOW()`,
-			userID, "pending:"+state,
+			 SET access_token = $3, tenant_id = $2, status = 0, updated_at = NOW()`,
+			userID, tenantID, "pending:"+state,
 		)
 		if err != nil {
 			log.Printf("[FB] 存储 state 失败: %v", err)
 		}
 	}
 
-	// 需要的权限
-	scopes := []string{
-		"ads_management",     // 广告管理
-		"ads_read",           // 广告读取
-		"business_management", // 商务管理平台
+	// 验证配置 ID（企业版 Facebook 登录必需）
+	if s.configID == "" {
+		return "", fmt.Errorf("Facebook 配置 ID 未设置，请在 .env 中设置 FB_CONFIG_ID")
 	}
 
+	// 企业版 Facebook 登录：使用 config_id 替代 scope
+	// 权限在 Facebook 应用面板的"企业版 Facebook 登录 → 配置"中管理
 	authURL := fmt.Sprintf(
-		"%s/%s/oauth/authorize?client_id=%s&redirect_uri=%s&scope=%s&state=%s&response_type=code",
+		"%s/%s/oauth/authorize?client_id=%s&redirect_uri=%s&config_id=%s&response_type=code&override_default_response_type=true&state=%s",
 		s.graphAPI, s.graphVer,
 		url.QueryEscape(s.appID),
 		url.QueryEscape(s.redirectURI),
-		url.QueryEscape(strings.Join(scopes, ",")),
+		url.QueryEscape(s.configID),
 		state,
 	)
 
 	return authURL, nil
 }
 
+// GetShortAuthURL 生成短链接版本的授权 URL
+// 返回完整授权链接和对应的短链接
+func (s *FbService) GetShortAuthURL(userID uint, tenantID *uint, serverHost string) (authURL, shortURL string, err error) {
+	authURL, err = s.GetAuthURL(userID, tenantID)
+	if err != nil {
+		return "", "", err
+	}
+
+	// 生成 8 位随机 token
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return "", "", fmt.Errorf("生成短链接失败: %w", err)
+	}
+	token := hex.EncodeToString(b) // 8 字符
+
+	shortTokensMu.Lock()
+	shortTokens[token] = shortTokenEntry{
+		authURL:   authURL,
+		createdAt: time.Now(),
+	}
+	shortTokensMu.Unlock()
+
+	// 清理过期 token
+	go s.cleanExpiredShortTokens()
+
+	shortURL = fmt.Sprintf("http://%s/api/v1/fb/go/%s", serverHost, token)
+	return authURL, shortURL, nil
+}
+
+// ResolveShortToken 根据短 token 获取完整的 Facebook 授权链接
+func (s *FbService) ResolveShortToken(token string) (string, error) {
+	shortTokensMu.RLock()
+	entry, ok := shortTokens[token]
+	shortTokensMu.RUnlock()
+
+	if !ok {
+		return "", fmt.Errorf("链接已过期或无效，请重新生成")
+	}
+
+	// 检查是否过期（5 分钟）
+	if time.Since(entry.createdAt) > 5*time.Minute {
+		shortTokensMu.Lock()
+		delete(shortTokens, token)
+		shortTokensMu.Unlock()
+		return "", fmt.Errorf("链接已过期，请重新生成")
+	}
+
+	return entry.authURL, nil
+}
+
+// cleanExpiredShortTokens 清理过期的短链接 token
+func (s *FbService) cleanExpiredShortTokens() {
+	shortTokensMu.Lock()
+	defer shortTokensMu.Unlock()
+	for token, entry := range shortTokens {
+		if time.Since(entry.createdAt) > 5*time.Minute {
+			delete(shortTokens, token)
+		}
+	}
+}
+
 // ExchangeCodeForToken 用授权码换取 access token
 // state 包含编码的 userID（格式: hex(userID):nonce）
-// 返回 FbToken 和对应的 userID
-func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, uint, error) {
+// 返回 FbToken、userID 和 tenantID
+func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, uint, *uint, error) {
 	s.init()
 
 	if s.appID == "" || s.appSecret == "" {
-		return nil, 0, fmt.Errorf("Facebook 应用未配置")
+		return nil, 0, nil, fmt.Errorf("Facebook 应用未配置")
 	}
 
 	// 从 state 解析 userID
 	parts := strings.SplitN(state, ":", 2)
 	if len(parts) != 2 {
-		return nil, 0, fmt.Errorf("无效的 state 参数")
+		return nil, 0, nil, fmt.Errorf("无效的 state 参数")
 	}
 
 	userIDHex, nonce := parts[0], parts[1]
@@ -117,29 +217,31 @@ func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, u
 	// 解码 userID（hex → uint）
 	var userID uint64
 	if _, err := fmt.Sscanf(userIDHex, "%x", &userID); err != nil {
-		return nil, 0, fmt.Errorf("无效的 userID 编码: %w", err)
+		return nil, 0, nil, fmt.Errorf("无效的 userID 编码: %w", err)
 	}
 
-	// 验证 state（CSRF 防护 + 确认是本人发起的请求）
+	// 验证 state（CSRF 防护 + 确认是本人发起的请求），同时获取 tenant_id
+	var tenantID *uint
 	if db.Pool != nil {
 		var storedToken string
+		var tid *uint
 		ctx := context.Background()
 		err := db.Pool.QueryRow(ctx,
-			`SELECT access_token FROM fb_tokens
+			`SELECT access_token, tenant_id FROM fb_tokens
 			 WHERE user_id = $1 AND access_token LIKE 'pending:%'
 			   AND status = 0 AND updated_at > NOW() - INTERVAL '5 minutes'`,
 			userID,
-		).Scan(&storedToken)
+		).Scan(&storedToken, &tid)
 		if err != nil || storedToken != "pending:"+state {
-			return nil, 0, fmt.Errorf("无效的 state 参数，可能为 CSRF 攻击或授权已过期")
+			return nil, 0, nil, fmt.Errorf("无效的 state 参数，可能为 CSRF 攻击或授权已过期")
 		}
-		// 用 nonce 做二次验证
+		tenantID = tid
 		_ = nonce
 	}
 
 	// 构建 token 交换请求
 	tokenURL := fmt.Sprintf("%s/%s/oauth/access_token", s.graphAPI, s.graphVer)
-	resp, err := http.Get(fmt.Sprintf(
+	resp, err := s.httpClient.Get(fmt.Sprintf(
 		"%s?client_id=%s&redirect_uri=%s&client_secret=%s&code=%s",
 		tokenURL,
 		url.QueryEscape(s.appID),
@@ -148,13 +250,13 @@ func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, u
 		url.QueryEscape(code),
 	))
 	if err != nil {
-		return nil, 0, fmt.Errorf("请求 Facebook token 失败: %w", err)
+		return nil, 0, nil, fmt.Errorf("请求 Facebook token 失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, 0, fmt.Errorf("读取 Facebook 响应失败: %w", err)
+		return nil, 0, nil, fmt.Errorf("读取 Facebook 响应失败: %w", err)
 	}
 
 	// 解析响应
@@ -169,11 +271,11 @@ func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, u
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, 0, fmt.Errorf("解析 Facebook token 响应失败: %w", err)
+		return nil, 0, nil, fmt.Errorf("解析 Facebook token 响应失败: %w", err)
 	}
 
 	if tokenResp.Error != nil {
-		return nil, 0, fmt.Errorf("Facebook 返回错误: %s (type=%s, code=%d)",
+		return nil, 0, nil, fmt.Errorf("Facebook 返回错误: %s (type=%s, code=%d)",
 			tokenResp.Error.Message, tokenResp.Error.Type, tokenResp.Error.Code)
 	}
 
@@ -198,9 +300,9 @@ func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, u
 		AccessToken: longToken,
 		TokenType:   tokenResp.TokenType,
 		ExpiresAt:   expiresAt,
-		Scopes:      []string{"ads_management", "ads_read", "business_management"},
+		Scopes:      []string{"ads_read", "ads_management", "business_management"}, // 企业版登录配置中的权限
 		Status:      1,
-	}, uint(userID), nil
+	}, uint(userID), tenantID, nil
 }
 
 // exchangeLongLivedToken 用短期 token 换取长期 token（60天有效）
@@ -208,7 +310,7 @@ func (s *FbService) exchangeLongLivedToken(shortToken string) (string, error) {
 	s.init()
 
 	tokenURL := fmt.Sprintf("%s/%s/oauth/access_token", s.graphAPI, s.graphVer)
-	resp, err := http.Get(fmt.Sprintf(
+	resp, err := s.httpClient.Get(fmt.Sprintf(
 		"%s?grant_type=fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s",
 		tokenURL,
 		url.QueryEscape(s.appID),
@@ -244,7 +346,7 @@ func (s *FbService) exchangeLongLivedToken(shortToken string) (string, error) {
 func (s *FbService) getFbUserInfo(accessToken string) (userID, userName string) {
 	s.init()
 
-	resp, err := http.Get(fmt.Sprintf(
+	resp, err := s.httpClient.Get(fmt.Sprintf(
 		"%s/%s/me?fields=id,name&access_token=%s",
 		s.graphAPI, s.graphVer, url.QueryEscape(accessToken),
 	))
@@ -270,22 +372,30 @@ func (s *FbService) getFbUserInfo(accessToken string) (userID, userName string) 
 }
 
 // SaveToken 保存或更新用户的 Facebook token
-func (s *FbService) SaveToken(userID uint, token *models.FbToken) error {
+func (s *FbService) SaveToken(userID uint, tenantID *uint, token *models.FbToken) error {
 	if db.Pool == nil {
 		return fmt.Errorf("数据库未连接")
 	}
 
 	ctx := context.Background()
-	scopesJSON, _ := json.Marshal(token.Scopes)
+	// 转换为 PostgreSQL TEXT[] 格式：["a","b"] → {a,b}
+	scopesArr := "{"
+	for i, s := range token.Scopes {
+		if i > 0 {
+			scopesArr += ","
+		}
+		scopesArr += fmt.Sprintf("\"%s\"", s)
+	}
+	scopesArr += "}"
 
 	_, err := db.Pool.Exec(ctx,
-		`INSERT INTO fb_tokens (user_id, fb_user_id, fb_user_name, access_token, token_type, expires_at, scopes, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 1, NOW(), NOW())
+		`INSERT INTO fb_tokens (user_id, tenant_id, fb_user_id, fb_user_name, access_token, token_type, expires_at, scopes, status, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, NOW(), NOW())
 		 ON CONFLICT (user_id) DO UPDATE
-		 SET fb_user_id = $2, fb_user_name = $3, access_token = $4, token_type = $5,
-		     expires_at = $6, scopes = $7, status = 1, updated_at = NOW()`,
-		userID, token.FbUserID, token.FbUserName, token.AccessToken,
-		token.TokenType, token.ExpiresAt, string(scopesJSON),
+		 SET tenant_id = $2, fb_user_id = $3, fb_user_name = $4, access_token = $5, token_type = $6,
+		     expires_at = $7, scopes = $8, status = 1, updated_at = NOW()`,
+		userID, tenantID, token.FbUserID, token.FbUserName, token.AccessToken,
+		token.TokenType, token.ExpiresAt, scopesArr,
 	)
 	if err != nil {
 		return fmt.Errorf("保存 token 失败: %w", err)
@@ -294,8 +404,8 @@ func (s *FbService) SaveToken(userID uint, token *models.FbToken) error {
 	return nil
 }
 
-// GetToken 获取用户的有效 Facebook token
-func (s *FbService) GetToken(userID uint) (*models.FbToken, error) {
+// GetToken 获取用户的有效 Facebook token（租户隔离）
+func (s *FbService) GetToken(userID uint, tenantID *uint) (*models.FbToken, error) {
 	if db.Pool == nil {
 		return nil, fmt.Errorf("数据库未连接")
 	}
@@ -305,14 +415,15 @@ func (s *FbService) GetToken(userID uint) (*models.FbToken, error) {
 	var scopesStr string
 	var bmListStr, adAccsStr string
 	var expiresAt time.Time
+	var tid *uint
 
 	err := db.Pool.QueryRow(ctx,
-		`SELECT id, user_id, fb_user_id, fb_user_name, access_token, token_type, expires_at,
+		`SELECT id, user_id, tenant_id, fb_user_id, fb_user_name, access_token, token_type, expires_at,
 		        COALESCE(scopes::text, '[]'), COALESCE(bm_list::text, '[]'), COALESCE(ad_accounts::text, '[]'),
 		        selected_ad_account_id, status, created_at, updated_at
-		 FROM fb_tokens WHERE user_id = $1 AND status = 1`,
-		userID,
-	).Scan(&token.ID, &token.UserID, &token.FbUserID, &token.FbUserName,
+		 FROM fb_tokens WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	).Scan(&token.ID, &token.UserID, &tid, &token.FbUserID, &token.FbUserName,
 		&token.AccessToken, &token.TokenType, &expiresAt,
 		&scopesStr, &bmListStr, &adAccsStr,
 		&token.SelectedAdAccountID, &token.Status, &token.CreatedAt, &token.UpdatedAt)
@@ -321,19 +432,20 @@ func (s *FbService) GetToken(userID uint) (*models.FbToken, error) {
 		return nil, fmt.Errorf("未找到有效的 Facebook 授权: %w", err)
 	}
 
+	token.TenantID = tid
 	token.ExpiresAt = expiresAt
 	token.BmList = bmListStr
 	token.AdAccounts = adAccsStr
 
-	// 解析 scopes
-	json.Unmarshal([]byte(scopesStr), &token.Scopes)
+	// 解析 scopes（TEXT[] 格式: {a,b} 或 {"a","b"}）
+	token.Scopes = parsePgArray(scopesStr)
 
 	return &token, nil
 }
 
-// GetConnectionStatus 获取用户的 Facebook 连接状态
-func (s *FbService) GetConnectionStatus(userID uint) *models.FbConnectionStatusResponse {
-	token, err := s.GetToken(userID)
+// GetConnectionStatus 获取用户的 Facebook 连接状态（租户隔离）
+func (s *FbService) GetConnectionStatus(userID uint, tenantID *uint) *models.FbConnectionStatusResponse {
+	token, err := s.GetToken(userID, tenantID)
 	if err != nil {
 		return &models.FbConnectionStatusResponse{Connected: false}
 	}
@@ -348,9 +460,9 @@ func (s *FbService) GetConnectionStatus(userID uint) *models.FbConnectionStatusR
 	}
 }
 
-// GetAdAccounts 获取用户可访问的广告账户列表
-func (s *FbService) GetAdAccounts(userID uint) (*models.FbAdAccountListResponse, error) {
-	token, err := s.GetToken(userID)
+// GetAdAccounts 获取用户可访问的广告账户列表（租户隔离）
+func (s *FbService) GetAdAccounts(userID uint, tenantID *uint) (*models.FbAdAccountListResponse, error) {
+	token, err := s.GetToken(userID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -420,8 +532,9 @@ func (s *FbService) GetAdAccounts(userID uint) (*models.FbAdAccountListResponse,
 		bmJSON, _ := json.Marshal(businesses)
 		ctx := context.Background()
 		db.Pool.Exec(ctx,
-			`UPDATE fb_tokens SET ad_accounts = $1, bm_list = $2, updated_at = NOW() WHERE user_id = $3`,
-			string(accJSON), string(bmJSON), userID,
+			`UPDATE fb_tokens SET ad_accounts = $1, bm_list = $2, updated_at = NOW()
+			 WHERE user_id = $3 AND tenant_id IS NOT DISTINCT FROM $4`,
+			string(accJSON), string(bmJSON), userID, tenantID,
 		)
 	}
 
@@ -431,16 +544,17 @@ func (s *FbService) GetAdAccounts(userID uint) (*models.FbAdAccountListResponse,
 	}, nil
 }
 
-// Disconnect 断开 Facebook 连接
-func (s *FbService) Disconnect(userID uint) error {
+// Disconnect 断开 Facebook 连接（租户隔离）
+func (s *FbService) Disconnect(userID uint, tenantID *uint) error {
 	if db.Pool == nil {
 		return fmt.Errorf("数据库未连接")
 	}
 
 	ctx := context.Background()
 	_, err := db.Pool.Exec(ctx,
-		`UPDATE fb_tokens SET status = 0, updated_at = NOW() WHERE user_id = $1`,
-		userID,
+		`UPDATE fb_tokens SET status = 0, updated_at = NOW()
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2`,
+		userID, tenantID,
 	)
 	return err
 }
@@ -457,7 +571,7 @@ func (s *FbService) fbGet(endpoint string, params map[string]string) (map[string
 	}
 	u.RawQuery = q.Encode()
 
-	resp, err := http.Get(u.String())
+	resp, err := s.httpClient.Get(u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -498,4 +612,33 @@ func getInt(m map[string]interface{}, key string) int {
 	default:
 		return 0
 	}
+}
+
+// parsePgArray 解析 PostgreSQL TEXT[] 格式: {a,b} 或 {"a","b"}
+func parsePgArray(s string) []string {
+	s = strings.TrimSpace(s)
+	if len(s) < 2 || s[0] != '{' || s[len(s)-1] != '}' {
+		return []string{}
+	}
+	// 去掉首尾花括号
+	inner := s[1 : len(s)-1]
+	if inner == "" {
+		return []string{}
+	}
+	var result []string
+	var current strings.Builder
+	inQuote := false
+	for _, ch := range inner {
+		switch {
+		case ch == '"':
+			inQuote = !inQuote
+		case ch == ',' && !inQuote:
+			result = append(result, strings.Trim(current.String(), `"`))
+			current.Reset()
+		default:
+			current.WriteRune(ch)
+		}
+	}
+	result = append(result, strings.Trim(current.String(), `"`))
+	return result
 }
