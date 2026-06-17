@@ -9,6 +9,7 @@ import (
 	"github.com/githubi2/FbAi/art-design-server/config"
 	"github.com/githubi2/FbAi/art-design-server/db"
 	"github.com/githubi2/FbAi/art-design-server/routes"
+	"github.com/githubi2/FbAi/art-design-server/services"
 )
 
 func main() {
@@ -27,6 +28,9 @@ func main() {
 	} else {
 		log.Println("[WARN] DATABASE_URL 未配置，将使用内存数据")
 	}
+
+	// 尝试升级为 Redis 分布式限速（如果配置了 REDIS_URL）
+	services.TryUpgradeToRedis()
 
 	router := routes.SetupRouter()
 
