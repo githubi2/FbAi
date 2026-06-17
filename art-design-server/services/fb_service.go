@@ -308,66 +308,84 @@ func (s *FbService) ExchangeCodeForToken(code, state string) (*models.FbToken, u
 func (s *FbService) exchangeLongLivedToken(shortToken string) (string, error) {
 	s.init()
 
-	tokenURL := fmt.Sprintf("%s/%s/oauth/access_token", s.graphAPI, s.graphVer)
-	resp, err := s.httpClient.Get(fmt.Sprintf(
-		"%s?grant_type=fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s",
-		tokenURL,
-		url.QueryEscape(s.appID),
-		url.QueryEscape(s.appSecret),
-		url.QueryEscape(shortToken),
-	))
+	result, err := DefaultFbRateLimiter.Do(context.Background(), "/oauth/access_token", func() (interface{}, error) {
+		tokenURL := fmt.Sprintf("%s/%s/oauth/access_token", s.graphAPI, s.graphVer)
+		resp, reqErr := s.httpClient.Get(fmt.Sprintf(
+			"%s?grant_type=fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s",
+			tokenURL,
+			url.QueryEscape(s.appID),
+			url.QueryEscape(s.appSecret),
+			url.QueryEscape(shortToken),
+		))
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		defer resp.Body.Close()
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, readErr
+		}
+
+		var tokenResult struct {
+			AccessToken string `json:"access_token"`
+			ExpiresIn   int    `json:"expires_in"`
+		}
+		if jsonErr := json.Unmarshal(body, &tokenResult); jsonErr != nil {
+			return nil, jsonErr
+		}
+
+		if tokenResult.AccessToken == "" {
+			return nil, fmt.Errorf("换取长期 token 失败: %s", string(body))
+		}
+
+		return tokenResult.AccessToken, nil
+	})
+
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var result struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"` // 通常 5184000 秒（60天）
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", err
-	}
-
-	if result.AccessToken == "" {
-		return "", fmt.Errorf("换取长期 token 失败: %s", string(body))
-	}
-
-	return result.AccessToken, nil
+	return result.(string), nil
 }
 
-// getFbUserInfo 获取 Facebook 用户信息
+// getFbUserInfo 获取 Facebook 用户信息 — 自动走限速队列
 func (s *FbService) getFbUserInfo(accessToken string) (userID, userName string) {
 	s.init()
 
-	resp, err := s.httpClient.Get(fmt.Sprintf(
-		"%s/%s/me?fields=id,name&access_token=%s",
-		s.graphAPI, s.graphVer, url.QueryEscape(accessToken),
-	))
+	result, err := DefaultFbRateLimiter.Do(context.Background(), "/me", func() (interface{}, error) {
+		resp, reqErr := s.httpClient.Get(fmt.Sprintf(
+			"%s/%s/me?fields=id,name&access_token=%s",
+			s.graphAPI, s.graphVer, url.QueryEscape(accessToken),
+		))
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		defer resp.Body.Close()
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, readErr
+		}
+
+		var user struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}
+		if jsonErr := json.Unmarshal(body, &user); jsonErr != nil {
+			return nil, jsonErr
+		}
+
+		return &user, nil
+	})
+
 	if err != nil {
 		return "", ""
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", ""
-	}
-
-	var user struct {
+	u := result.(*struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
-	}
-	if err := json.Unmarshal(body, &user); err != nil {
-		return "", ""
-	}
-
-	return user.ID, user.Name
+	})
+	return u.ID, u.Name
 }
 
 // SaveToken 保存或更新用户的 Facebook token（多账号支持）
@@ -828,40 +846,47 @@ func (s *FbService) RefreshAccountStats(id uint, userID uint, tenantID *uint) er
 	return nil
 }
 
-// fbGet 调用 Facebook Graph API (GET)
+// fbGet 调用 Facebook Graph API (GET) — 自动走限速队列
 func (s *FbService) fbGet(endpoint string, params map[string]string) (map[string]interface{}, error) {
 	s.init()
 
-	// 构建 URL
-	u, _ := url.Parse(s.graphAPI + endpoint)
-	q := u.Query()
-	for k, v := range params {
-		q.Set(k, v)
-	}
-	u.RawQuery = q.Encode()
+	result, err := DefaultFbRateLimiter.Do(context.Background(), endpoint, func() (interface{}, error) {
+		// 构建 URL
+		u, _ := url.Parse(s.graphAPI + endpoint)
+		q := u.Query()
+		for k, v := range params {
+			q.Set(k, v)
+		}
+		u.RawQuery = q.Encode()
 
-	resp, err := s.httpClient.Get(u.String())
+		resp, reqErr := s.httpClient.Get(u.String())
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		defer resp.Body.Close()
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, readErr
+		}
+
+		var result map[string]interface{}
+		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+			return nil, fmt.Errorf("解析 Facebook API 响应失败: %w", jsonErr)
+		}
+
+		// 检查 Facebook 错误
+		if errMsg, ok := result["error"].(map[string]interface{}); ok {
+			return nil, fmt.Errorf("Facebook API 错误: %v", errMsg["message"])
+		}
+
+		return result, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("解析 Facebook API 响应失败: %w", err)
-	}
-
-	// 检查 Facebook 错误
-	if errMsg, ok := result["error"].(map[string]interface{}); ok {
-		return nil, fmt.Errorf("Facebook API 错误: %v", errMsg["message"])
-	}
-
-	return result, nil
+	return result.(map[string]interface{}), nil
 }
 
 // 辅助函数
