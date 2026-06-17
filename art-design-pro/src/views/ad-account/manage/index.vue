@@ -148,6 +148,16 @@ const {
         formatter: (row: FbAdAccountDetail) => row.timezoneName || '—'
       },
       {
+        prop: 'timezoneOffset',
+        label: t('menus.adAccount.columns.timezone'),
+        width: 90,
+        formatter: (row: FbAdAccountDetail) => {
+          if (row.timezoneOffset === 0 && !row.timezoneName) return '—'
+          const sign = row.timezoneOffset >= 0 ? '+' : ''
+          return `UTC${sign}${row.timezoneOffset}`
+        }
+      },
+      {
         prop: 'amountSpent',
         label: t('menus.adAccount.columns.totalSpend'),
         minWidth: 150,

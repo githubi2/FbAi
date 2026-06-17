@@ -309,7 +309,8 @@
         "hiddenAdmin": "隐藏管理员",
         "createdTime": "创建时间",
         "currency": "货币",
-        "country": "国家/地区"
+        "country": "国家/地区",
+        "timezone": "时区"
       },
       "status": {
         "normal": "正常",

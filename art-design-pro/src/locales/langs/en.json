@@ -309,7 +309,8 @@
         "hiddenAdmin": "Hidden Admins",
         "createdTime": "Created Time",
         "currency": "Currency",
-        "country": "Country/Region"
+        "country": "Country/Region",
+        "timezone": "Timezone"
       },
       "status": {
         "normal": "Normal",

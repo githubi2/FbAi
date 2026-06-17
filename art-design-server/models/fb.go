@@ -65,8 +65,9 @@ type FbAdAccountDetail struct {
 	Balance        float64 `json:"balance"`        // 余额/下笔扣款额度
 	AdminName      string  `json:"adminName"`      // 主管理员名称
 	HiddenAdmins   int     `json:"hiddenAdmins"`   // 隐藏管理员个数
-	TimezoneName   string  `json:"timezoneName"`   // 时区（如 Asia/Taipei）
-	CreatedTime    string  `json:"createdTime"`    // 创建时间
+	TimezoneName   string  `json:"timezoneName"`   // 时区名称（如 Asia/Taipei）
+	TimezoneOffset float64 `json:"timezoneOffset"`  // UTC偏移小时（如 8）
+	CreatedTime    string  `json:"createdTime"`     // 创建时间
 }
 
 // FbAdAccountDetailListResponse 广告账户详细列表响应

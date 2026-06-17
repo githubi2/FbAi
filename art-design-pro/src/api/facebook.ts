@@ -142,6 +142,7 @@ export interface FbAdAccountDetail {
   adminName: string
   hiddenAdmins: number
   timezoneName: string
+  timezoneOffset: number
   createdTime: string
 }
 
