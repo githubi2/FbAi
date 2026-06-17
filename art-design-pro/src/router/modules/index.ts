@@ -2,6 +2,8 @@ import { AppRouteRecord } from '@/types/router'
 import { dashboardRoutes } from './dashboard'
 import { systemRoutes } from './system'
 import { tenantSystemRoutes } from './tenantSystem'
+import { adAccountRoutes } from './adAccount'
+import { bmManageRoutes } from './bmManage'
 import { resultRoutes } from './result'
 import { exceptionRoutes } from './exception'
 
@@ -12,6 +14,8 @@ export const routeModules: AppRouteRecord[] = [
   dashboardRoutes,
   systemRoutes,
   tenantSystemRoutes,
+  adAccountRoutes,
+  bmManageRoutes,
   resultRoutes,
   exceptionRoutes
 ]

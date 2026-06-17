@@ -267,7 +267,7 @@ func (s *MenuService) listFallback() []models.Menu {
 		{ID: 16, ParentID: 0, Title: "广告管理", Name: "AdAccount", Path: "/ad-account", Component: "/index/index", Icon: "ri:advertisement-line", SortOrder: 4, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 17, ParentID: 16, Title: "账户列表", Name: "AdAccountList", Path: "list", Component: "/ad-account/index", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 18, ParentID: 16, Title: "广告账户管理", Name: "AdAccountManage", Path: "manage", Component: "/ad-account/manage/index", SortOrder: 2, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
-		{ID: 19, ParentID: 16, Title: "BM管理", Name: "AdAccountBm", Path: "bm", Component: "/index/index", SortOrder: 3, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 19, ParentID: 0, Title: "BM管理", Name: "AdAccountBm", Path: "/bm-manage", Component: "/index/index", Icon: "ri:building-2-line", SortOrder: 6, MenuType: "directory", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 20, ParentID: 19, Title: "BM列表", Name: "AdAccountBmList", Path: "list", Component: "/ad-account/bm/index", SortOrder: 1, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 	}
 }
