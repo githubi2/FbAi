@@ -981,7 +981,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		adAccResp, err := s.fbGet(
 			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 			map[string]string{
-				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,daily_spend_limit,business{name},owner,users{name},timezone_name,timezone_offset_hours_utc,created_time,funding_source_details,disable_reason,next_bill_date,business_country_code,is_personal",
+				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name},timezone_name,timezone_offset_hours_utc,created_time",
 				"access_token": accessToken,
 				"limit":        "100",
 			},
