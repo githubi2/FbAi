@@ -964,12 +964,14 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 	defer rows.Close()
 
 	var allAccounts []models.FbAdAccountDetail
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for rows.Next() {
 		var (
-			tokenID    uint
-			fbUserID   string
-			fbUserName string
+			tokenID     uint
+			fbUserID    string
+			fbUserName  string
 			accessToken string
 		)
 		if err := rows.Scan(&tokenID, &fbUserID, &fbUserName, &accessToken); err != nil {
@@ -977,7 +979,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 			continue
 		}
 
-		// 调用 Facebook API 获取该账号下的广告账户详细信息
+		// 调用 Facebook API 获取该账号下的广告账户基本信息
 		adAccResp, err := s.fbGet(
 			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 			map[string]string{
@@ -999,12 +1001,30 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		if data, ok := adAccResp["data"].([]interface{}); ok {
 			for _, item := range data {
 				if acc, ok := item.(map[string]interface{}); ok {
+					accID := getString(acc, "id") // act_xxx 格式
 					detail := s.parseAdAccountDetail(acc, fbUserID, fbUserName)
-					allAccounts = append(allAccounts, detail)
+
+					// 并行获取每个广告账户的详细信息（日限额、支付方法、账单期等）
+					if accID != "" {
+						wg.Add(1)
+						go func(adAccountID string, base models.FbAdAccountDetail) {
+							defer wg.Done()
+							enriched := s.enrichAdAccountDetail(adAccountID, accessToken, base)
+							mu.Lock()
+							allAccounts = append(allAccounts, enriched)
+							mu.Unlock()
+						}(accID, detail)
+					} else {
+						mu.Lock()
+						allAccounts = append(allAccounts, detail)
+						mu.Unlock()
+					}
 				}
 			}
 		}
 	}
+
+	wg.Wait()
 
 	if allAccounts == nil {
 		allAccounts = []models.FbAdAccountDetail{}
@@ -1014,6 +1034,52 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		Accounts: allAccounts,
 		Total:    len(allAccounts),
 	}, nil
+}
+
+// enrichAdAccountDetail 通过单个广告账户端点获取详细字段并合并
+func (s *FbService) enrichAdAccountDetail(adAccountID, accessToken string, base models.FbAdAccountDetail) models.FbAdAccountDetail {
+	// 请求高级字段（仅单个账户端点支持）
+	detailFields := "daily_spend_limit,funding_source_details,disable_reason,next_bill_date,business_country_code,is_personal"
+
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
+		map[string]string{
+			"fields":       detailFields,
+			"access_token": accessToken,
+		},
+	)
+	if err != nil {
+		log.Printf("[FB] 获取账户 %s 详细字段失败: %v", adAccountID, err)
+		return base
+	}
+
+	// 解析详细字段
+	if v, ok := resp["daily_spend_limit"]; ok {
+		base.DailySpendLimit = toFloat64(v)
+	}
+	if fs, ok := resp["funding_source_details"].(map[string]interface{}); ok {
+		base.FundingSource = getString(fs, "display_string")
+		if base.FundingSource == "" {
+			base.FundingSource = getString(fs, "type")
+		}
+	}
+	if v, ok := resp["disable_reason"]; ok {
+		if dr, ok := v.(float64); ok {
+			base.DisableReason = int(dr)
+			base.DisableReasonLabel = s.getDisableReasonLabel(base.DisableReason)
+		}
+	}
+	if v, ok := resp["next_bill_date"].(string); ok {
+		base.NextBillDate = v
+	}
+	if v, ok := resp["business_country_code"].(string); ok {
+		base.CountryCode = v
+	}
+	if _, ok := resp["is_personal"]; ok {
+		base.IsPersonal = getInt(resp, "is_personal")
+	}
+
+	return base
 }
 
 // parseAdAccountDetail 解析单个广告账户的详细信息
