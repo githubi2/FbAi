@@ -373,6 +373,7 @@
       "editAccount": "Edit Account",
       "viewPayments": "Payments",
       "noAdmin": "No Admin",
+      "noHiddenAdmin": "No Hidden Admins",
       "accountName": "Account Name",
       "accountNamePlaceholder": "Enter account name",
       "accountId": "Account ID",

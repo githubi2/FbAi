@@ -508,6 +508,20 @@
   const curAdminType = ref<'admin' | 'hidden'>('admin')
 
   const showAdminDetail = (row: FbAdAccountDetail, type: 'admin' | 'hidden') => {
+    // 标签值为 0 时直接提示，不弹窗
+    if (type === 'hidden') {
+      const count = row.hiddenAdmins || 0
+      if (count === 0) {
+        ElMessage.info(t('menus.adAccount.noHiddenAdmin'))
+        return
+      }
+    } else {
+      const total = row.hiddenAdmins + (row.adminName ? 1 : 0)
+      if (total === 0) {
+        ElMessage.info(t('menus.adAccount.noAdmin'))
+        return
+      }
+    }
     curAdminAccount.value = row
     curAdminType.value = type
     if (type === 'admin') {
