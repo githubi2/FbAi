@@ -307,7 +307,9 @@
         "nextBillAmount": "Next Bill Amount",
         "admin": "Admin",
         "hiddenAdmin": "Hidden Admins",
-        "createdTime": "Created Time"
+        "createdTime": "Created Time",
+        "currency": "Currency",
+        "country": "Country/Region"
       },
       "status": {
         "normal": "Normal",

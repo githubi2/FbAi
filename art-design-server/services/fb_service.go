@@ -941,7 +941,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		adAccResp, err := s.fbGet(
 			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 			map[string]string{
-				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name},created_time",
+				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name},timezone_name,created_time",
 				"access_token": accessToken,
 				"limit":        "100",
 			},
@@ -1006,9 +1006,11 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 	// 格式化创建时间
 	createdTime := ""
 	if ct, ok := acc["created_time"].(string); ok {
-		// Facebook 返回 ISO 8601 格式
 		createdTime = ct
 	}
+
+	// 时区（用于显示国家/地区）
+	timezoneName := getString(acc, "timezone_name")
 
 	// 获取金额相关字段
 	amountSpent := 0.0
@@ -1042,6 +1044,7 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 		Balance:       balance,
 		AdminName:     adminName,
 		HiddenAdmins:  hiddenAdmins,
+		TimezoneName:  timezoneName,
 		CreatedTime:   createdTime,
 	}
 }

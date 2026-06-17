@@ -307,7 +307,9 @@
         "nextBillAmount": "下笔扣款额度",
         "admin": "管理员",
         "hiddenAdmin": "隐藏管理员",
-        "createdTime": "创建时间"
+        "createdTime": "创建时间",
+        "currency": "货币",
+        "country": "国家/地区"
       },
       "status": {
         "normal": "正常",

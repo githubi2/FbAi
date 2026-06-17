@@ -136,6 +136,18 @@ const {
         }
       },
       {
+        prop: 'currency',
+        label: t('menus.adAccount.columns.currency'),
+        width: 80,
+        formatter: (row: FbAdAccountDetail) => row.currency || '—'
+      },
+      {
+        prop: 'timezoneName',
+        label: t('menus.adAccount.columns.country'),
+        minWidth: 140,
+        formatter: (row: FbAdAccountDetail) => row.timezoneName || '—'
+      },
+      {
         prop: 'amountSpent',
         label: t('menus.adAccount.columns.totalSpend'),
         minWidth: 150,

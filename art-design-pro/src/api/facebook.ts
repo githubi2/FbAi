@@ -141,6 +141,7 @@ export interface FbAdAccountDetail {
   balance: number
   adminName: string
   hiddenAdmins: number
+  timezoneName: string
   createdTime: string
 }
 
