@@ -19,6 +19,37 @@
       </div>
     </ElCard>
 
+    <!-- 搜索筛选栏 -->
+    <ElCard class="mb-4" shadow="never">
+      <ElForm :inline="true" :model="searchForm" class="search-form">
+        <ElFormItem :label="$t('menus.adAccount.searchKeyword')">
+          <ElInput
+            v-model="searchForm.keyword"
+            :placeholder="$t('menus.adAccount.searchKeyword')"
+            clearable
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+          />
+        </ElFormItem>
+        <ElFormItem :label="$t('menus.adAccount.filterStatus')">
+          <ElSelect
+            v-model="searchForm.status"
+            :placeholder="$t('menus.adAccount.statusPlaceholder')"
+            clearable
+            @change="handleSearch"
+          >
+            <ElOption :label="$t('menus.adAccount.status.normal')" value="正常" />
+            <ElOption :label="$t('menus.adAccount.status.expired')" value="已过期" />
+            <ElOption :label="$t('menus.adAccount.status.error')" value="异常" />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem>
+          <ElButton @click="handleSearch">{{ $t('table.searchBar.search') }}</ElButton>
+          <ElButton @click="handleReset">{{ $t('table.searchBar.reset') }}</ElButton>
+        </ElFormItem>
+      </ElForm>
+    </ElCard>
+
     <!-- 账号表格 -->
     <ElCard class="art-table-card">
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
@@ -31,7 +62,14 @@
         </template>
       </ArtTableHeader>
 
-      <ArtTable :loading="loading" :data="data" :columns="columns" />
+      <ArtTable
+        :loading="loading"
+        :data="data"
+        :columns="columns"
+        :pagination="pagination"
+        @pagination:size-change="handleSizeChange"
+        @pagination:current-change="handleCurrentChange"
+      />
 
       <!-- 空状态 -->
       <ElEmpty
@@ -137,6 +175,12 @@
 
   const { t } = useI18n()
 
+  // ==================== 搜索筛选 ====================
+  const searchForm = reactive({
+    keyword: '',
+    status: ''
+  })
+
   // ==================== 授权链接弹窗 ====================
   const showAuthDialog = ref(false)
   const shortUrl = ref('')
@@ -160,25 +204,57 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
-  // ==================== useTable ====================
-  const fetchAccounts = async (_params: any) => {
+  // ==================== useTable — 客户端分页+筛选 ====================
+  const fetchAccounts = async (params: any) => {
+    const current = params?.current || 1
+    const size = params?.size || 20
+
     try {
       const result = await fetchFbAccountList()
-      return {
-        list: result.accounts || [],
-        total: result.total || 0,
-        page: 1,
-        size: result.total || 0
+      let accounts = result.accounts || []
+
+      // 客户端筛选
+      const keyword = (params?.keyword || '').toLowerCase().trim()
+      const statusFilter = params?.status || ''
+
+      if (keyword) {
+        accounts = accounts.filter(
+          (a) =>
+            (a.fbUserName || '').toLowerCase().includes(keyword) ||
+            (a.label || '').toLowerCase().includes(keyword) ||
+            (a.fbUserId || '').toLowerCase().includes(keyword)
+        )
       }
+
+      if (statusFilter) {
+        accounts = accounts.filter((a) => a.accountStatus === statusFilter)
+      }
+
+      // 客户端分页
+      const total = accounts.length
+      const start = (current - 1) * size
+      const list = accounts.slice(start, start + size)
+
+      return { list, total, page: current, size }
     } catch {
-      return { list: [], total: 0, page: 1, size: 0 }
+      return { list: [], total: 0, page: 1, size: 20 }
     }
   }
 
-  const { columns, columnChecks, data, loading, refreshData } = useTable({
+  const {
+    columns,
+    columnChecks,
+    data,
+    loading,
+    pagination,
+    replaceSearchParams,
+    handleSizeChange,
+    handleCurrentChange,
+    refreshData
+  } = useTable({
     core: {
       apiFn: fetchAccounts,
-      apiParams: { current: 1, size: 50 },
+      apiParams: { current: 1, size: 20 },
       columnsFactory: () => [
         { type: 'index', width: 60, label: t('menus.adAccount.columns.index') },
         {
@@ -317,7 +393,23 @@
     }
   })
 
-  const totalAccounts = computed(() => data.value.length)
+  const totalAccounts = computed(() => pagination.total)
+
+  // ==================== 搜索/重置 ====================
+  const handleSearch = () => {
+    replaceSearchParams({
+      keyword: searchForm.keyword,
+      status: searchForm.status,
+      current: 1,
+      size: 20
+    } as any)
+  }
+
+  const handleReset = () => {
+    searchForm.keyword = ''
+    searchForm.status = ''
+    replaceSearchParams({ keyword: '', status: '', current: 1, size: 20 } as any)
+  }
 
   // ==================== 操作方法 ====================
   // 开启授权轮询
@@ -485,6 +577,17 @@
     flex-shrink: 0;
   }
 
+  .search-form {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    :deep(.el-form-item) {
+      margin-bottom: 0;
+    }
+  }
+
   .auth-dialog-body {
     .auth-dialog-tip {
       font-size: 14px;
@@ -498,8 +601,7 @@
       .link-label {
         display: block;
         font-size: 13px;
-        font-weight: 500;
-        color: #303133;
+        color: #999;
         margin-bottom: 6px;
       }
     }
@@ -507,11 +609,6 @@
     .auth-link-box {
       display: flex;
       align-items: center;
-      gap: 8px;
-
-      .el-input {
-        flex: 1;
-      }
     }
 
     .auth-dialog-actions {
@@ -520,7 +617,7 @@
     }
 
     .polling-status {
-      :deep(.el-alert__title) {
+      :deep(.el-alert__content) {
         display: flex;
         align-items: center;
       }

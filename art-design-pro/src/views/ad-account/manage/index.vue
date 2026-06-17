@@ -1,6 +1,47 @@
 <!-- 广告账户管理页面 -->
 <template>
   <div class="ad-account-manage-page art-full-height">
+    <!-- 搜索筛选栏 -->
+    <ElCard class="mb-4" shadow="never">
+      <ElForm :inline="true" :model="searchForm" class="search-form">
+        <ElFormItem :label="$t('menus.adAccount.searchKeyword')">
+          <ElInput
+            v-model="searchForm.keyword"
+            :placeholder="$t('menus.adAccount.searchKeyword')"
+            clearable
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+          />
+        </ElFormItem>
+        <ElFormItem :label="$t('menus.adAccount.filterStatus')">
+          <ElSelect
+            v-model="searchForm.status"
+            :placeholder="$t('menus.adAccount.statusPlaceholder')"
+            clearable
+            @change="handleSearch"
+          >
+            <ElOption :label="$t('menus.adAccount.statusActive')" :value="1" />
+            <ElOption :label="$t('menus.adAccount.statusDisabled')" :value="2" />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem :label="$t('menus.adAccount.filterAccountType')">
+          <ElSelect
+            v-model="searchForm.accountType"
+            :placeholder="$t('menus.adAccount.filterAccountType')"
+            clearable
+            @change="handleSearch"
+          >
+            <ElOption label="企业" value="企业" />
+            <ElOption label="个人" value="个人" />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem>
+          <ElButton @click="handleSearch">{{ $t('table.searchBar.search') }}</ElButton>
+          <ElButton @click="handleReset">{{ $t('table.searchBar.reset') }}</ElButton>
+        </ElFormItem>
+      </ElForm>
+    </ElCard>
+
     <ElCard class="art-table-card">
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
@@ -12,7 +53,14 @@
         </template>
       </ArtTableHeader>
 
-      <ArtTable :loading="loading" :data="data" :columns="columns" />
+      <ArtTable
+        :loading="loading"
+        :data="data"
+        :columns="columns"
+        :pagination="pagination"
+        @pagination:size-change="handleSizeChange"
+        @pagination:current-change="handleCurrentChange"
+      />
 
       <ElEmpty
         v-if="!loading && data.length === 0"
@@ -34,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-  import { h, ref } from 'vue'
+  import { h, ref, reactive } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import { ElTag, ElEmpty, ElTooltip, ElButton, ElDialog, ElMessage } from 'element-plus'
@@ -44,6 +92,13 @@
   defineOptions({ name: 'AdAccountManage' })
 
   const { t } = useI18n()
+
+  // ==================== 搜索筛选 ====================
+  const searchForm = reactive({
+    keyword: '',
+    status: null as number | null,
+    accountType: ''
+  })
 
   // ==================== 格式化 ====================
   const formatDate = (val: string) => {
@@ -87,8 +142,6 @@
   // 支付方式格式化：提取卡类型+后四位
   const formatPaymentMethod = (source: string) => {
     if (!source) return '—'
-    // FB returns "Visa **** 1234" or "credit_card" type
-    // Try to extract card type and last 4
     const match = source.match(/([A-Za-z]+)\s+\*+\s*(\d+)/)
     if (match) {
       return `${match[1]} ····${match[2]}`
@@ -96,25 +149,68 @@
     return source
   }
 
-  // ==================== useTable ====================
-  const fetchDetail = async () => {
+  // ==================== useTable — 客户端分页+筛选 ====================
+  const fetchDetail = async (params: any) => {
+    const current = params?.current || 1
+    const size = params?.size || 20
+
     try {
       const result = await fetchFbAdAccountsDetail()
-      return {
-        list: result.accounts || [],
-        total: result.total || 0,
-        page: 1,
-        size: result.total || 0
+      let accounts = result.accounts || []
+
+      // 客户端筛选
+      const keyword = (params?.keyword || '').toLowerCase().trim()
+      const statusFilter = params?.status
+      const accountTypeFilter = params?.accountType || ''
+
+      if (keyword) {
+        accounts = accounts.filter(
+          (a: FbAdAccountDetail) =>
+            (a.name || '').toLowerCase().includes(keyword) ||
+            (a.accountId || a.id || '').toLowerCase().includes(keyword) ||
+            (a.businessName || '').toLowerCase().includes(keyword)
+        )
       }
+
+      if (statusFilter != null && statusFilter !== '') {
+        accounts = accounts.filter(
+          (a: FbAdAccountDetail) => a.accountStatus === Number(statusFilter)
+        )
+      }
+
+      if (accountTypeFilter) {
+        if (accountTypeFilter === '企业') {
+          accounts = accounts.filter((a: FbAdAccountDetail) => !!a.businessName)
+        } else if (accountTypeFilter === '个人') {
+          accounts = accounts.filter((a: FbAdAccountDetail) => !a.businessName)
+        }
+      }
+
+      // 客户端分页
+      const total = accounts.length
+      const start = (current - 1) * size
+      const list = accounts.slice(start, start + size)
+
+      return { list, total, page: current, size }
     } catch {
-      return { list: [], total: 0, page: 1, size: 0 }
+      return { list: [], total: 0, page: 1, size: 20 }
     }
   }
 
-  const { columns, columnChecks, data, loading, refreshData } = useTable({
+  const {
+    columns,
+    columnChecks,
+    data,
+    loading,
+    pagination,
+    replaceSearchParams,
+    handleSizeChange,
+    handleCurrentChange,
+    refreshData
+  } = useTable({
     core: {
       apiFn: fetchDetail,
-      apiParams: { current: 1, size: 200 },
+      apiParams: { current: 1, size: 20 },
       columnsFactory: () => [
         { type: 'index', width: 55, label: '#' },
         {
@@ -279,6 +375,24 @@
     }
   })
 
+  // ==================== 搜索/重置 ====================
+  const handleSearch = () => {
+    replaceSearchParams({
+      keyword: searchForm.keyword,
+      status: searchForm.status,
+      accountType: searchForm.accountType,
+      current: 1,
+      size: 20
+    } as any)
+  }
+
+  const handleReset = () => {
+    searchForm.keyword = ''
+    searchForm.status = null
+    searchForm.accountType = ''
+    replaceSearchParams({ keyword: '', status: null, accountType: '', current: 1, size: 20 } as any)
+  }
+
   // ==================== 支付记录弹窗 ====================
   const paymentDialogVisible = ref(false)
   const paymentDialogTitle = ref('')
@@ -363,5 +477,16 @@
 <style lang="scss" scoped>
   .ad-account-manage-page {
     padding: 0;
+  }
+
+  .search-form {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    :deep(.el-form-item) {
+      margin-bottom: 0;
+    }
   }
 </style>

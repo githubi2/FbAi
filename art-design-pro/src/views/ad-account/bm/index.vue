@@ -1,6 +1,25 @@
 <!-- BM 管理页面 — 展示所有已授权FB账号下的 Business Manager 列表 -->
 <template>
   <div class="ad-account-bm-page art-full-height">
+    <!-- 搜索筛选栏 -->
+    <ElCard class="mb-4" shadow="never">
+      <ElForm :inline="true" :model="searchForm" class="search-form">
+        <ElFormItem :label="$t('menus.adAccount.searchKeyword')">
+          <ElInput
+            v-model="searchForm.keyword"
+            :placeholder="$t('menus.adAccount.searchKeyword')"
+            clearable
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+          />
+        </ElFormItem>
+        <ElFormItem>
+          <ElButton @click="handleSearch">{{ $t('table.searchBar.search') }}</ElButton>
+          <ElButton @click="handleReset">{{ $t('table.searchBar.reset') }}</ElButton>
+        </ElFormItem>
+      </ElForm>
+    </ElCard>
+
     <ElCard class="art-table-card">
       <!-- 表格头部 -->
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
@@ -14,19 +33,23 @@
       </ArtTableHeader>
 
       <!-- 表格 -->
-      <ArtTable :loading="loading" :data="data" :columns="columns" />
+      <ArtTable
+        :loading="loading"
+        :data="data"
+        :columns="columns"
+        :pagination="pagination"
+        @pagination:size-change="handleSizeChange"
+        @pagination:current-change="handleCurrentChange"
+      />
 
       <!-- 空状态 -->
-      <ElEmpty
-        v-if="!loading && data.length === 0"
-        :description="$t('menus.adAccount.bmNoData')"
-      />
+      <ElEmpty v-if="!loading && data.length === 0" :description="$t('menus.adAccount.bmNoData')" />
     </ElCard>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { h, computed } from 'vue'
+  import { h, reactive } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import { ElTag, ElEmpty, ElTooltip } from 'element-plus'
@@ -34,6 +57,11 @@
   defineOptions({ name: 'AdAccountBm' })
 
   const { t } = useI18n()
+
+  // ==================== 搜索筛选 ====================
+  const searchForm = reactive({
+    keyword: ''
+  })
 
   // ==================== 数据类型 ====================
   interface BmItem {
@@ -55,12 +83,14 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
 
-  // ==================== useTable ====================
-  const fetchBmList = async (_params: any) => {
+  // ==================== useTable — 客户端分页+筛选 ====================
+  // TODO: 接入真实 API — GET /api/v1/fb/bm/list
+  const fetchBmList = async (params: any) => {
+    const current = params?.current || 1
+    const size = params?.size || 20
+
     try {
-      // TODO: 接入真实 API — GET /api/v1/fb/bm/list
-      const res = await (await import('@/api/facebook')).fetchFbAccountList()
-      // 从 token 的 bm_list 聚合 BM（暂时用 mock）
+      // 模拟数据（后续替换为真实 API 调用）
       const mockBmList: BmItem[] = [
         {
           bmId: '123456789',
@@ -81,16 +111,45 @@
           createdTime: '2025-03-20T10:30:00Z'
         }
       ]
-      return { list: mockBmList, total: mockBmList.length, page: 1, size: mockBmList.length }
+
+      let list = mockBmList
+
+      // 客户端筛选
+      const keyword = (params?.keyword || '').toLowerCase().trim()
+      if (keyword) {
+        list = list.filter(
+          (item) =>
+            (item.bmName || '').toLowerCase().includes(keyword) ||
+            (item.bmId || '').toLowerCase().includes(keyword) ||
+            (item.fbOwnerName || '').toLowerCase().includes(keyword)
+        )
+      }
+
+      // 客户端分页
+      const total = list.length
+      const start = (current - 1) * size
+      const paged = list.slice(start, start + size)
+
+      return { list: paged, total, page: current, size }
     } catch {
-      return { list: [], total: 0, page: 1, size: 0 }
+      return { list: [], total: 0, page: 1, size: 20 }
     }
   }
 
-  const { columns, columnChecks, data, loading, refreshData } = useTable({
+  const {
+    columns,
+    columnChecks,
+    data,
+    loading,
+    pagination,
+    replaceSearchParams,
+    handleSizeChange,
+    handleCurrentChange,
+    refreshData
+  } = useTable({
     core: {
       apiFn: fetchBmList,
-      apiParams: { current: 1, size: 200 },
+      apiParams: { current: 1, size: 20 },
       columnsFactory: () => [
         { type: 'index', width: 58, label: '#' },
         {
@@ -144,10 +203,35 @@
       ]
     }
   })
+
+  // ==================== 搜索/重置 ====================
+  const handleSearch = () => {
+    replaceSearchParams({
+      keyword: searchForm.keyword,
+      current: 1,
+      size: 20
+    } as any)
+  }
+
+  const handleReset = () => {
+    searchForm.keyword = ''
+    replaceSearchParams({ keyword: '', current: 1, size: 20 } as any)
+  }
 </script>
 
 <style lang="scss" scoped>
   .ad-account-bm-page {
     padding: 0;
+  }
+
+  .search-form {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    :deep(.el-form-item) {
+      margin-bottom: 0;
+    }
   }
 </style>

@@ -383,7 +383,11 @@
       "statusDisabled": "禁用",
       "statusPlaceholder": "请选择状态",
       "bm": "BM管理",
-      "noData": "暂无BM数据"
+      "noData": "暂无BM数据",
+      "searchKeyword": "搜索关键词",
+      "filterStatus": "状态筛选",
+      "filterAccountType": "账号类型",
+      "bmNoData": "暂无BM数据"
     }
   },
   "table": {
