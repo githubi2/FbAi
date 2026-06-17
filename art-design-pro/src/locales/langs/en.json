@@ -376,6 +376,7 @@
       "noHiddenAdmin": "No Hidden Admins",
       "adminDialogStep1": "Select admins to remove",
       "adminDialogStep2": "Default interval 4s",
+      "adminDialogTitle": "Admin Permissions",
       "adminDialogConfirm": "Confirm Delete",
       "adminDialogNoOther": "No other admins to remove",
       "adminDeleteSuccess": "Selected {count} admin(s) to remove",

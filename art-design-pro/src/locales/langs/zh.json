@@ -376,6 +376,7 @@
       "noHiddenAdmin": "没有隐藏管理员",
       "adminDialogStep1": "请选择你要删除的管理员",
       "adminDialogStep2": "系统默认执行时间间隔 4s",
+      "adminDialogTitle": "管理员权限",
       "adminDialogConfirm": "确认删除",
       "adminDialogNoOther": "没有其他管理员可删除",
       "adminDeleteSuccess": "已选择删除 {count} 个管理员",

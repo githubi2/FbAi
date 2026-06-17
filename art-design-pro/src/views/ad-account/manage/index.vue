@@ -82,34 +82,28 @@
     <!-- 管理员详情弹窗 -->
     <ElDialog v-model="adminDialogVisible" :title="adminDialogTitle" width="550px" destroy-on-close>
       <div class="admin-dialog-content">
-        <ElEmpty
-          v-if="curOtherAdminNames.length === 0"
-          :description="$t('menus.adAccount.adminDialogNoOther')"
-        />
-        <template v-else>
-          <!-- 步骤1：选择要删除的管理员 -->
-          <div class="admin-step">
-            <div class="admin-step-label">
-              {{ $t('menus.adAccount.adminDialogStep1') }}
-            </div>
-            <ElCheckboxGroup v-model="selectedAdmins" class="admin-checklist">
-              <ElCheckbox
-                v-for="name in curOtherAdminNames"
-                :key="name"
-                :label="name"
-                :value="name"
-              >
-                {{ name }}
-              </ElCheckbox>
-            </ElCheckboxGroup>
+        <!-- 步骤1：选择要删除的管理员 -->
+        <div class="admin-step">
+          <div class="admin-step-label">
+            {{ $t('menus.adAccount.adminDialogStep1') }}
           </div>
-          <!-- 步骤2：执行时间间隔 -->
-          <div class="admin-step">
-            <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
-              {{ $t('menus.adAccount.adminDialogStep2') }}
+          <ElCheckboxGroup v-model="selectedAdmins" class="admin-checklist">
+            <ElCheckbox v-for="name in curOtherAdminNames" :key="name" :label="name" :value="name">
+              {{ name }}
             </ElCheckbox>
-          </div>
-        </template>
+          </ElCheckboxGroup>
+          <ElEmpty
+            v-if="curOtherAdminNames.length === 0"
+            :description="$t('menus.adAccount.adminDialogNoOther')"
+            :image-size="60"
+          />
+        </div>
+        <!-- 步骤2：执行时间间隔 -->
+        <div class="admin-step">
+          <ElCheckbox v-model="useDefaultInterval" class="admin-interval-check">
+            {{ $t('menus.adAccount.adminDialogStep2') }}
+          </ElCheckbox>
+        </div>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -573,11 +567,7 @@
     curOtherAdminNames.value = row.otherAdminNames || []
     selectedAdmins.value = []
     useDefaultInterval.value = true
-    if (type === 'admin') {
-      adminDialogTitle.value = `${row.name || row.accountId || '—'} — ${t('menus.adAccount.admin')}`
-    } else {
-      adminDialogTitle.value = `${row.name || row.accountId || '—'} — ${t('menus.adAccount.hiddenAdmin')}`
-    }
+    adminDialogTitle.value = `${row.name || row.accountId || '—'} — ${t('menus.adAccount.adminDialogTitle')}`
     adminDialogVisible.value = true
   }
 
