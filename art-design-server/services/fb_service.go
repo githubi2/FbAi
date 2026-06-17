@@ -1375,34 +1375,79 @@ func (s *FbService) GetPaymentHistory(userID uint, tenantID *uint, adAccountID s
 		return nil, fmt.Errorf("未找到有效的 Facebook 授权: %w", err)
 	}
 
-	// 调用 FB API: /{ad_account_id}/transactions
-	resp, err := s.fbGet(
-		fmt.Sprintf("/%s/%s/transactions", s.graphVer, adAccountID),
-		map[string]string{
-			"fields":       "id,account_id,time,description,amount,currency,billing_start_time,billing_end_time,status,payment_method",
-			"access_token": accessToken,
-			"limit":        "50",
-		},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("获取支付记录失败: %w", err)
+	// 尝试不同的支付/账单端点
+	// /{ad_account_id}/transactions 可能在 v22 已弃用
+	// 改用 /{ad_account_id}/adspayments 或 .../billing
+	endpoints := []string{
+		fmt.Sprintf("/%s/%s/adspayments", s.graphVer, adAccountID),
+		fmt.Sprintf("/%s/%s/billing_transactions", s.graphVer, adAccountID),
+		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
 	}
 
+	var resp map[string]interface{}
+	var usedEndpoint string
+	var lastErr error
+
+	for _, ep := range endpoints {
+		var e error
+		if ep == endpoints[2] {
+			// 第三个直接查账户本身的 billing 字段
+			resp, e = s.fbGet(ep, map[string]string{
+				"fields":       "balance,amount_spent,spend_cap,currency",
+				"access_token": accessToken,
+			})
+		} else {
+			resp, e = s.fbGet(ep, map[string]string{
+				"fields":       "id,time,description,amount,currency,status",
+				"access_token": accessToken,
+				"limit":        "50",
+			})
+		}
+		if e == nil {
+			usedEndpoint = ep
+			lastErr = nil
+			break
+		}
+		log.Printf("[FB-PAY] 端点 %s 失败: %v", ep, e)
+		lastErr = e
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("获取支付记录失败 (试了%d个端点): %w", len(endpoints), lastErr)
+	}
+
+	log.Printf("[FB-PAY] 成功使用端点: %s, 响应: %v", usedEndpoint, resp)
+
+	// 如果是账户详情端点，构造单条摘要记录
+	if usedEndpoint == endpoints[2] {
+		records := []models.FbPaymentRecord{{
+			Description: "账户摘要",
+			Amount:      toFloat64(resp["balance"]),
+			Currency:    getString(resp, "currency"),
+			Status:      "summary",
+		}}
+		if records == nil {
+			records = []models.FbPaymentRecord{}
+		}
+		return &models.FbPaymentListResponse{Records: records, Total: len(records)}, nil
+	}
+
+	// 解析交易列表
 	var records []models.FbPaymentRecord
 	if data, ok := resp["data"].([]interface{}); ok {
 		for _, item := range data {
 			if t, ok := item.(map[string]interface{}); ok {
 				records = append(records, models.FbPaymentRecord{
-					ID:            getString(t, "id"),
-					AccountID:     getString(t, "account_id"),
-					Time:          getString(t, "time"),
-					Description:   getString(t, "description"),
-					Amount:        toFloat64(t["amount"]),
-					Currency:      getString(t, "currency"),
-					BillingStart:  getString(t, "billing_start_time"),
-					BillingEnd:    getString(t, "billing_end_time"),
-					Status:        getString(t, "status"),
-					PaymentMethod: getString(t, "payment_method"),
+					ID:          getString(t, "id"),
+					AccountID:   getString(t, "account_id"),
+					Time:        getString(t, "time"),
+					Description: getString(t, "description"),
+					Amount:      toFloat64(t["amount"]),
+					Currency:    getString(t, "currency"),
+					BillingStart: "",
+					BillingEnd:   "",
+					Status:      getString(t, "status"),
+					PaymentMethod: "",
 				})
 			}
 		}
