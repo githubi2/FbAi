@@ -168,3 +168,33 @@ export function fetchFbAdAccountsDetail() {
     showErrorMessage: true
   })
 }
+
+// ==================== 支付记录 ====================
+
+/** 支付记录 */
+export interface FbPaymentRecord {
+  id: string
+  accountId: string
+  time: string
+  description: string
+  amount: number
+  currency: string
+  billingStart: string
+  billingEnd: string
+  status: string
+  paymentMethod: string
+}
+
+/** 支付记录列表响应 */
+export interface FbPaymentListResponse {
+  records: FbPaymentRecord[]
+  total: number
+}
+
+/** 获取广告账户的支付记录 */
+export function fetchFbPaymentHistory(adAccountId: string) {
+  return request.get<FbPaymentListResponse>({
+    url: `/api/v1/fb/ad-accounts/${adAccountId}/payments`,
+    showErrorMessage: true
+  })
+}

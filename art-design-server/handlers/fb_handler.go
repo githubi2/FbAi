@@ -511,3 +511,27 @@ func (h *FbHandler) AdAccountsDetail(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.Success(result))
 }
+
+// PaymentHistory GET /api/v1/fb/ad-accounts/:id/payments — 获取广告账户支付记录
+func (h *FbHandler) PaymentHistory(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	adAccountID := c.Param("id")
+	if adAccountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少广告账户 ID"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetPaymentHistory(userID, tenantID, adAccountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(result))
+}

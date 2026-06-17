@@ -1353,3 +1353,67 @@ func deriveCountryCode(tz string) string {
 	}
 	return tz
 }
+
+// GetPaymentHistory 获取广告账户的支付/交易记录
+func (s *FbService) GetPaymentHistory(userID uint, tenantID *uint, adAccountID string) (*models.FbPaymentListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	s.init()
+
+	// 获取有效的 FB token
+	var accessToken string
+	ctx := context.Background()
+	err := db.Pool.QueryRow(ctx,
+		`SELECT access_token FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1
+		 ORDER BY updated_at DESC LIMIT 1`,
+		userID, tenantID,
+	).Scan(&accessToken)
+	if err != nil {
+		return nil, fmt.Errorf("未找到有效的 Facebook 授权: %w", err)
+	}
+
+	// 调用 FB API: /{ad_account_id}/transactions
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/transactions", s.graphVer, adAccountID),
+		map[string]string{
+			"fields":       "id,account_id,time,description,amount,currency,billing_start_time,billing_end_time,status,payment_method",
+			"access_token": accessToken,
+			"limit":        "50",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("获取支付记录失败: %w", err)
+	}
+
+	var records []models.FbPaymentRecord
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if t, ok := item.(map[string]interface{}); ok {
+				records = append(records, models.FbPaymentRecord{
+					ID:            getString(t, "id"),
+					AccountID:     getString(t, "account_id"),
+					Time:          getString(t, "time"),
+					Description:   getString(t, "description"),
+					Amount:        toFloat64(t["amount"]),
+					Currency:      getString(t, "currency"),
+					BillingStart:  getString(t, "billing_start_time"),
+					BillingEnd:    getString(t, "billing_end_time"),
+					Status:        getString(t, "status"),
+					PaymentMethod: getString(t, "payment_method"),
+				})
+			}
+		}
+	}
+
+	if records == nil {
+		records = []models.FbPaymentRecord{}
+	}
+
+	return &models.FbPaymentListResponse{
+		Records: records,
+		Total:   len(records),
+	}, nil
+}

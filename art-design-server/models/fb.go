@@ -128,3 +128,23 @@ type FbAccountListResponse struct {
 type FbUpdateLabelRequest struct {
 	Label string `json:"label" binding:"max=64"`
 }
+
+// FbPaymentRecord 支付/交易记录
+type FbPaymentRecord struct {
+	ID              string  `json:"id"`
+	AccountID       string  `json:"accountId"`
+	Time            string  `json:"time"`
+	Description     string  `json:"description"`
+	Amount          float64 `json:"amount"`
+	Currency        string  `json:"currency"`
+	BillingStart    string  `json:"billingStart"`
+	BillingEnd      string  `json:"billingEnd"`
+	Status          string  `json:"status"`
+	PaymentMethod   string  `json:"paymentMethod"`
+}
+
+// FbPaymentListResponse 支付记录列表响应
+type FbPaymentListResponse struct {
+	Records []FbPaymentRecord `json:"records"`
+	Total   int               `json:"total"`
+}
