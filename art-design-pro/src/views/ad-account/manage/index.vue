@@ -78,6 +78,18 @@
       <ArtTable :loading="paymentLoading" :data="paymentRecords" :columns="paymentColumns" />
       <ElEmpty v-if="!paymentLoading && paymentRecords.length === 0" description="暂无支付记录" />
     </ElDialog>
+
+    <!-- 管理员详情弹窗 -->
+    <ElDialog v-model="adminDialogVisible" :title="adminDialogTitle" width="600px" destroy-on-close>
+      <div class="admin-dialog-content">
+        <!-- TODO: 内容待完善 -->
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <ElButton @click="adminDialogVisible = false">{{ $t('common.cancel') }}</ElButton>
+        </div>
+      </template>
+    </ElDialog>
   </div>
 </template>
 
@@ -248,21 +260,38 @@
         {
           prop: 'adminCount',
           label: t('menus.adAccount.columns.admin'),
-          width: 95,
+          minWidth: 110,
           formatter: (row: FbAdAccountDetail) => {
-            const total = row.hiddenAdmins + (row.adminName ? 1 : 0)
+            const hasAdmin = !!row.adminName
             return h(
-              ElTooltip,
-              { content: row.adminName || t('menus.adAccount.noAdmin'), placement: 'top' },
-              () => h('span', String(total))
+              ElTag,
+              {
+                type: hasAdmin ? 'primary' : 'info',
+                size: 'small',
+                style: { cursor: 'pointer' },
+                onClick: () => showAdminDetail(row, 'admin')
+              },
+              () => (hasAdmin ? row.adminName : '0')
             )
           }
         },
         {
           prop: 'hiddenAdmins',
           label: t('menus.adAccount.columns.hiddenAdmin'),
-          width: 105,
-          formatter: (row: FbAdAccountDetail) => String(row.hiddenAdmins)
+          minWidth: 110,
+          formatter: (row: FbAdAccountDetail) => {
+            const count = row.hiddenAdmins || 0
+            return h(
+              ElTag,
+              {
+                type: count > 0 ? 'warning' : 'info',
+                size: 'small',
+                style: { cursor: 'pointer' },
+                onClick: () => showAdminDetail(row, 'hidden')
+              },
+              () => String(count)
+            )
+          }
         },
         {
           prop: 'fundingSource',
@@ -472,6 +501,22 @@
       paymentLoading.value = false
     }
   }
+  // ==================== 管理员详情弹窗 ====================
+  const adminDialogVisible = ref(false)
+  const adminDialogTitle = ref('')
+  const curAdminAccount = ref<FbAdAccountDetail | null>(null)
+  const curAdminType = ref<'admin' | 'hidden'>('admin')
+
+  const showAdminDetail = (row: FbAdAccountDetail, type: 'admin' | 'hidden') => {
+    curAdminAccount.value = row
+    curAdminType.value = type
+    if (type === 'admin') {
+      adminDialogTitle.value = `${row.name || row.accountId || '—'} — 管理员`
+    } else {
+      adminDialogTitle.value = `${row.name || row.accountId || '—'} — 隐藏管理员`
+    }
+    adminDialogVisible.value = true
+  }
 </script>
 
 <style lang="scss" scoped>
@@ -488,5 +533,13 @@
     :deep(.el-form-item) {
       margin-bottom: 0;
     }
+  }
+
+  .admin-dialog-content {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-secondary);
   }
 </style>
