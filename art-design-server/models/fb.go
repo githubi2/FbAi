@@ -20,6 +20,8 @@ type FbToken struct {
 	Status               int       `json:"status"`
 	CreatedAt            time.Time `json:"createdAt"`
 	UpdatedAt            time.Time `json:"updatedAt"`
+	LastError            string    `json:"lastError"`     // 最近一次 FB API 调用失败的错误信息
+	LastErrorAt          *time.Time `json:"lastErrorAt"`  // 最近一次错误发生时间
 }
 
 // FbAuthURLResponse 授权链接响应
@@ -101,10 +103,11 @@ type FbAccountListItem struct {
 	CreatedAt       string    `json:"createdAt"`       // ISO 时间字符串
 	DaysUntilExpiry int       `json:"daysUntilExpiry"` // 剩余天数（负数=已过期）
 	HasAdPerm       bool      `json:"hasAdPerm"`       // 是否有广告权限
-	AccountStatus   string    `json:"accountStatus"`   // "正常" / "已过期"
+	AccountStatus   string    `json:"accountStatus"`   // "正常" / "已过期" / "异常"
 	BmCount         int       `json:"bmCount"`         // BM 总个数
 	PersonalAdCount int       `json:"personalAdCount"` // 个人广告账户数量
 	BmAdCount       int       `json:"bmAdCount"`       // BM 下广告账户数量
+	DataError       string    `json:"dataError"`       // 数据拉取失败时的错误信息
 }
 
 // FbAccountListResponse FB 账号列表响应

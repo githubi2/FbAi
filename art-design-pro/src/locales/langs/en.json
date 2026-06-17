@@ -314,7 +314,8 @@
       },
       "status": {
         "normal": "Normal",
-        "expired": "Expired"
+        "expired": "Expired",
+        "error": "Error"
       },
       "adPerm": {
         "granted": "Granted",

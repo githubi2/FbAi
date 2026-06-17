@@ -623,7 +623,8 @@ func (s *FbService) ListAccounts(userID uint, tenantID *uint) (*models.FbAccount
 	ctx := context.Background()
 	rows, err := db.Pool.Query(ctx,
 		`SELECT id, fb_user_id, fb_user_name, COALESCE(label, ''), COALESCE(scopes::text, '{}'),
-		        expires_at, created_at, COALESCE(bm_list::text, '[]'), COALESCE(ad_accounts::text, '[]')
+		        expires_at, created_at, COALESCE(bm_list::text, '[]'), COALESCE(ad_accounts::text, '[]'),
+		        COALESCE(last_error, '')
 		 FROM fb_tokens
 		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1
 		 ORDER BY created_at DESC`,
@@ -648,9 +649,10 @@ func (s *FbService) ListAccounts(userID uint, tenantID *uint) (*models.FbAccount
 			createdAt     time.Time
 			bmListStr     string
 			adAccountsStr string
+			lastError     string
 		)
 		if err := rows.Scan(&id, &fbUserID, &fbUserName, &label, &scopesStr,
-			&expiresAt, &createdAt, &bmListStr, &adAccountsStr); err != nil {
+			&expiresAt, &createdAt, &bmListStr, &adAccountsStr, &lastError); err != nil {
 			log.Printf("[FB] 扫描账号行失败: %v", err)
 			continue
 		}
@@ -694,9 +696,11 @@ func (s *FbService) ListAccounts(userID uint, tenantID *uint) (*models.FbAccount
 		// 计算剩余天数
 		daysUntilExpiry := int(expiresAt.Sub(now).Hours() / 24)
 
-		// 判断账号状态
+		// 判断账号状态：异常 > 已过期 > 正常
 		accountStatus := "正常"
-		if daysUntilExpiry < 0 {
+		if lastError != "" {
+			accountStatus = "异常"
+		} else if daysUntilExpiry < 0 {
 			accountStatus = "已过期"
 		}
 
@@ -714,6 +718,7 @@ func (s *FbService) ListAccounts(userID uint, tenantID *uint) (*models.FbAccount
 			BmCount:         bmCount,
 			PersonalAdCount: personalAdCount,
 			BmAdCount:       bmAdCount,
+			DataError:       lastError,
 		})
 	}
 
@@ -769,7 +774,9 @@ func (s *FbService) RefreshAccountStats(id uint, userID uint, tenantID *uint) er
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("获取广告账户失败: %w", err)
+		errMsg := fmt.Sprintf("获取广告账户失败: %v", err)
+		s.setLastError(id, errMsg)
+		return fmt.Errorf("%s: %w", errMsg, err)
 	}
 
 	var adAccounts []map[string]interface{}
@@ -814,6 +821,9 @@ func (s *FbService) RefreshAccountStats(id uint, userID uint, tenantID *uint) er
 	if err != nil {
 		return fmt.Errorf("缓存账户数据失败: %w", err)
 	}
+
+	// 刷新成功，清除之前的错误
+	s.clearLastError(id)
 
 	return nil
 }
@@ -873,7 +883,37 @@ func getInt(m map[string]interface{}, key string) int {
 	}
 }
 
-// parsePgArray 解析 PostgreSQL TEXT[] 格式: {a,b} 或 {"a","b"}
+// setLastError 更新 fb_tokens 的 last_error 字段
+func (s *FbService) setLastError(tokenID uint, errMsg string) {
+	if db.Pool == nil || tokenID == 0 {
+		return
+	}
+	ctx := context.Background()
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE fb_tokens SET last_error = $1, last_error_at = NOW(), updated_at = NOW()
+		 WHERE id = $2`,
+		errMsg, tokenID,
+	)
+	if err != nil {
+		log.Printf("[FB] 更新 last_error 失败 (tokenID=%d): %v", tokenID, err)
+	}
+}
+
+// clearLastError 清除 fb_tokens 的 last_error 字段（刷新成功时调用）
+func (s *FbService) clearLastError(tokenID uint) {
+	if db.Pool == nil || tokenID == 0 {
+		return
+	}
+	ctx := context.Background()
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE fb_tokens SET last_error = '', last_error_at = NULL, updated_at = NOW()
+		 WHERE id = $1`,
+		tokenID,
+	)
+	if err != nil {
+		log.Printf("[FB] 清除 last_error 失败 (tokenID=%d): %v", tokenID, err)
+	}
+}
 func parsePgArray(s string) []string {
 	s = strings.TrimSpace(s)
 	if len(s) < 2 || s[0] != '{' || s[len(s)-1] != '}' {
@@ -947,9 +987,14 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 			},
 		)
 		if err != nil {
-			log.Printf("[FB] 获取广告账户详情失败 (fbUserId=%s): %v", fbUserID, err)
+			errMsg := fmt.Sprintf("获取广告账户详情失败: %v", err)
+			log.Printf("[FB] %s (fbUserId=%s)", errMsg, fbUserID)
+			s.setLastError(tokenID, errMsg)
 			continue
 		}
+
+		// API 调用成功，清除之前的错误
+		s.clearLastError(tokenID)
 
 		if data, ok := adAccResp["data"].([]interface{}); ok {
 			for _, item := range data {

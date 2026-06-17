@@ -47,10 +47,11 @@ export interface FbAccount {
   createdAt: string
   daysUntilExpiry: number
   hasAdPerm: boolean
-  accountStatus: string // "正常" | "已过期"
+  accountStatus: string // "正常" | "已过期" | "异常"
   bmCount: number
   personalAdCount: number
   bmAdCount: number
+  dataError: string // 数据拉取失败时的错误信息
 }
 
 /** FB 账号列表响应 */

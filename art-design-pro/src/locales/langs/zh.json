@@ -314,7 +314,8 @@
       },
       "status": {
         "normal": "正常",
-        "expired": "已过期"
+        "expired": "已过期",
+        "error": "异常"
       },
       "adPerm": {
         "granted": "已授权",
