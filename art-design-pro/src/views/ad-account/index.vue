@@ -179,8 +179,6 @@ const {
   columnChecks,
   data,
   loading,
-  handleSizeChange,
-  handleCurrentChange,
   refreshData
 } = useTable({
   core: {
@@ -206,7 +204,7 @@ const {
       {
         prop: 'accountStatus',
         label: t('menus.adAccount.columns.status'),
-        width: 90,
+        minWidth: 90,
         formatter: (row: FbAccount) => {
           const isNormal = row.accountStatus === '正常'
           return h(ElTag, {
@@ -218,7 +216,7 @@ const {
       {
         prop: 'hasAdPerm',
         label: t('menus.adAccount.columns.adPerm'),
-        width: 100,
+        minWidth: 100,
         formatter: (row: FbAccount) => {
           return h(ElTag, {
             type: row.hasAdPerm ? 'success' : 'info',
@@ -229,7 +227,7 @@ const {
       {
         prop: 'bmCount',
         label: t('menus.adAccount.columns.bm'),
-        width: 70,
+        minWidth: 70,
         formatter: (row: FbAccount) => row.bmCount.toString()
       },
       {
@@ -289,15 +287,6 @@ const {
 const totalAccounts = computed(() => data.value.length)
 
 // ==================== 操作方法 ====================
-const checkNewConnection = async (): Promise<boolean> => {
-  try {
-    const result = await fetchFbAccountList()
-    return result.total > totalAccounts.value
-  } catch {
-    return false
-  }
-}
-
 // 开启授权轮询
 const startPolling = () => {
   if (pollTimer) return
