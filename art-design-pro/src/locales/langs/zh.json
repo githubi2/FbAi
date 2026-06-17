@@ -390,6 +390,7 @@
       "statusDisabled": "禁用",
       "statusPlaceholder": "请选择状态",
       "bm": "BM管理",
+      "bmList": "BM列表",
       "noData": "暂无BM数据",
       "searchKeyword": "搜索关键词",
       "filterStatus": "状态筛选",

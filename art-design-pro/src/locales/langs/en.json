@@ -390,6 +390,7 @@
       "statusDisabled": "Disabled",
       "statusPlaceholder": "Select status",
       "bm": "BM Management",
+      "bmList": "BM List",
       "noData": "No BM data",
       "searchKeyword": "Search keyword",
       "filterStatus": "Filter by status",
