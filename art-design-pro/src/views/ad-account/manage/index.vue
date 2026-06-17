@@ -619,6 +619,7 @@
     .admin-step {
       display: flex;
       gap: 12px;
+      align-items: flex-start;
 
       &:not(:last-child) {
         margin-bottom: 0;
@@ -626,11 +627,13 @@
     }
 
     .admin-step-indicator {
+      align-self: stretch;
       display: flex;
       flex-direction: column;
       align-items: center;
       flex-shrink: 0;
       width: 28px;
+      padding-top: 2px;
     }
 
     .admin-step-num {
@@ -646,7 +649,6 @@
       font-weight: 600;
       line-height: 1;
       flex-shrink: 0;
-      margin-top: 1px;
     }
 
     .admin-step-line {
