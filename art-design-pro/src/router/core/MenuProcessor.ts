@@ -78,6 +78,9 @@ export class MenuProcessor {
     TenantUser: 'menus.tenantSystem.user',
     TenantRole: 'menus.tenantSystem.role',
     TenantMenu: 'menus.tenantSystem.menu',
+    AdAccount: 'menus.adAccount.title',
+    AdAccountList: 'menus.adAccount.list',
+    AdAccountManage: 'menus.adAccount.manage',
     Result: 'menus.result.title',
     ResultSuccess: 'menus.result.success',
     ResultFail: 'menus.result.fail',
@@ -102,6 +105,9 @@ export class MenuProcessor {
     TenantUser: 'ri:user-3-line',
     TenantRole: 'ri:shield-user-line',
     TenantMenu: 'ri:menu-line',
+    AdAccount: 'ri:advertisement-line',
+    AdAccountList: 'ri:advertisement-line',
+    AdAccountManage: 'ri:advertisement-line',
     Result: 'ri:checkbox-circle-line',
     ResultSuccess: 'ri:checkbox-circle-line',
     ResultFail: 'ri:close-circle-line',
@@ -128,9 +134,7 @@ export class MenuProcessor {
         isHide: menu.hidden || false,
         isIframe: false
       },
-      children: menu.children?.length
-        ? this.transformBackendMenu(menu.children)
-        : undefined
+      children: menu.children?.length ? this.transformBackendMenu(menu.children) : undefined
     })) as AppRouteRecord[]
   }
 
@@ -251,11 +255,11 @@ export class MenuProcessor {
   private isNavigableRoute(route: AppRouteRecord): boolean {
     return Boolean(
       route.path &&
-        route.path !== '/' &&
-        !route.meta?.link &&
-        route.meta?.isIframe !== true &&
-        route.component &&
-        route.component !== ''
+      route.path !== '/' &&
+      !route.meta?.link &&
+      route.meta?.isIframe !== true &&
+      route.component &&
+      route.component !== ''
     )
   }
 

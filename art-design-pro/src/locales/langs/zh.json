@@ -308,7 +308,19 @@
       },
       "days": "{days} 天",
       "daysLeft": "剩余 {days} 天",
-      "expiredBadge": "已过期"
+      "expiredBadge": "已过期",
+      "manage": "广告账户管理",
+      "addAccount": "新增账户",
+      "editAccount": "编辑账户",
+      "accountName": "账户名称",
+      "accountNamePlaceholder": "请输入账户名称",
+      "accountId": "账户ID",
+      "accountIdPlaceholder": "请输入账户ID",
+      "platform": "平台",
+      "platformPlaceholder": "请选择平台",
+      "statusActive": "启用",
+      "statusDisabled": "禁用",
+      "statusPlaceholder": "请选择状态"
     }
   },
   "table": {

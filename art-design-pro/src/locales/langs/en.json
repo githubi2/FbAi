@@ -308,7 +308,19 @@
       },
       "days": "{days} days",
       "daysLeft": "{days} days left",
-      "expiredBadge": "Expired"
+      "expiredBadge": "Expired",
+      "manage": "Ad Account Management",
+      "addAccount": "Add Account",
+      "editAccount": "Edit Account",
+      "accountName": "Account Name",
+      "accountNamePlaceholder": "Enter account name",
+      "accountId": "Account ID",
+      "accountIdPlaceholder": "Enter account ID",
+      "platform": "Platform",
+      "platformPlaceholder": "Select platform",
+      "statusActive": "Active",
+      "statusDisabled": "Disabled",
+      "statusPlaceholder": "Select status"
     }
   },
   "table": {
