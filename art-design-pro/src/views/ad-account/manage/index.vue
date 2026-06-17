@@ -2,7 +2,6 @@
 <template>
   <div class="ad-account-manage-page art-full-height">
     <ElCard class="art-table-card">
-      <!-- 表格头部 -->
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
           <ElSpace wrap>
@@ -13,10 +12,8 @@
         </template>
       </ArtTableHeader>
 
-      <!-- 表格 -->
       <ArtTable :loading="loading" :data="data" :columns="columns" />
 
-      <!-- 空状态 -->
       <ElEmpty
         v-if="!loading && data.length === 0"
         :description="$t('menus.adAccount.noAdAccounts')"
@@ -29,7 +26,7 @@
   import { h } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
-  import { ElTag, ElEmpty, ElTooltip } from 'element-plus'
+  import { ElTag, ElEmpty, ElTooltip, ElButton } from 'element-plus'
   import type { FbAdAccountDetail } from '@/api/facebook'
   import { fetchFbAdAccountsDetail } from '@/api/facebook'
 
@@ -55,7 +52,7 @@
   }
 
   const formatCurrency = (val: number, currency: string) => {
-    const formatted = val.toLocaleString('en-US', {
+    const formatted = Math.abs(val).toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
@@ -84,6 +81,18 @@
     }
   }
 
+  // 支付方式格式化：提取卡类型+后四位
+  const formatPaymentMethod = (source: string) => {
+    if (!source) return '—'
+    // FB returns "Visa **** 1234" or "credit_card" type
+    // Try to extract card type and last 4
+    const match = source.match(/([A-Za-z]+)\s+\*+\s*(\d+)/)
+    if (match) {
+      return `${match[1]} ····${match[2]}`
+    }
+    return source
+  }
+
   // ==================== useTable ====================
   const fetchDetail = async () => {
     try {
@@ -105,12 +114,12 @@
       apiParams: { current: 1, size: 200 },
       columnsFactory: () => [
         // 1. 序号
-        { type: 'index', width: 58, label: '#' },
+        { type: 'index', width: 55, label: '#' },
         // 2. 状态
         {
           prop: 'accountStatus',
           label: t('menus.adAccount.columns.status'),
-          width: 90,
+          width: 85,
           formatter: (row: FbAdAccountDetail) => {
             const config = getStatusConfig(row.accountStatus)
             return h(ElTag, { type: config.type, size: 'small' }, () => row.statusLabel || '—')
@@ -118,177 +127,147 @@
         },
         // 3. 账号
         {
-          prop: 'name',
-          label: t('menus.adAccount.columns.adAccountName'),
-          minWidth: 180,
+          prop: 'accountId',
+          label: t('menus.adAccount.columns.adAccountId'),
+          minWidth: 170,
           formatter: (row: FbAdAccountDetail) => {
             return h(
               ElTooltip,
-              {
-                content: `ID: ${row.accountId || row.id}`,
-                placement: 'top'
-              },
-              () => h('span', row.name || '—')
+              { content: `${row.name || '—'} (${row.accountId || row.id})`, placement: 'top' },
+              () => h('span', row.accountId || row.id || '—')
             )
           }
         },
-        // 4. 推送状态
+        // 4. 账号类型（个人/企业）
         {
-          prop: 'pushStatus',
-          label: t('menus.adAccount.columns.pushStatus'),
-          width: 90,
-          formatter: () => '—'
+          prop: 'accountType',
+          label: t('menus.adAccount.columns.accountType'),
+          width: 85,
+          formatter: (row: FbAdAccountDetail) => {
+            if (row.isPersonal === 1)
+              return h(ElTag, { type: 'warning', size: 'small' }, () => '个人')
+            // isPersonal=0 means it's a business/BM ad account
+            // If we have businessName, it's definitely a BM account
+            if (row.businessName) return h(ElTag, { type: 'primary', size: 'small' }, () => '企业')
+            return h(ElTag, { type: 'info', size: 'small' }, () => '—')
+          }
         },
-        // 5. 管理员
+        // 5. 管理员数量
         {
-          prop: 'adminName',
+          prop: 'adminCount',
           label: t('menus.adAccount.columns.admin'),
-          minWidth: 130,
-          formatter: (row: FbAdAccountDetail) => row.adminName || '—'
+          width: 95,
+          formatter: (row: FbAdAccountDetail) => {
+            const total = row.hiddenAdmins + (row.adminName ? 1 : 0)
+            return h(
+              ElTooltip,
+              {
+                content: row.adminName || t('menus.adAccount.noAdmin'),
+                placement: 'top'
+              },
+              () => h('span', String(total))
+            )
+          }
         },
         // 6. 隐藏管理员
         {
           prop: 'hiddenAdmins',
           label: t('menus.adAccount.columns.hiddenAdmin'),
-          width: 110,
-          formatter: (row: FbAdAccountDetail) => row.hiddenAdmins.toString()
+          width: 105,
+          formatter: (row: FbAdAccountDetail) => String(row.hiddenAdmins)
         },
-        // 7. 账号类型（个人/企业）
+        // 7. 币种
         {
-          prop: 'accountType',
-          label: t('menus.adAccount.columns.accountType'),
-          width: 90,
-          formatter: (row: FbAdAccountDetail) => {
-            if (row.isPersonal === 1) return '个人'
-            if (row.isPersonal === 0) return '企业'
-            return '—'
-          }
+          prop: 'currency',
+          label: t('menus.adAccount.columns.currency'),
+          width: 75,
+          formatter: (row: FbAdAccountDetail) => row.currency || '—'
         },
-        // 8. 账单金额
-        {
-          prop: 'billAmount',
-          label: t('menus.adAccount.columns.billAmount'),
-          minWidth: 130,
-          formatter: (row: FbAdAccountDetail) => formatCurrency(row.balance, row.currency)
-        },
-        // 9. 门槛
-        {
-          prop: 'threshold',
-          label: t('menus.adAccount.columns.threshold'),
-          minWidth: 110,
-          formatter: () => '—'
-        },
-        // 10. 日限额
-        {
-          prop: 'dailySpendLimit',
-          label: t('menus.adAccount.columns.dailyLimit'),
-          minWidth: 130,
-          formatter: (row: FbAdAccountDetail) => {
-            if (row.dailySpendLimit === 0) {
-              return h('span', { style: { color: '#999' } }, t('menus.adAccount.unlimited'))
-            }
-            return formatCurrency(row.dailySpendLimit, row.currency)
-          }
-        },
-        // 11. 总花费
-        {
-          prop: 'totalSpend',
-          label: t('menus.adAccount.columns.totalSpend'),
-          minWidth: 140,
-          formatter: (row: FbAdAccountDetail) => formatCurrency(row.amountSpent, row.currency)
-        },
-        // 12. 花费限额
-        {
-          prop: 'spendCap',
-          label: t('menus.adAccount.columns.spendCap'),
-          minWidth: 130,
-          formatter: (row: FbAdAccountDetail) => {
-            if (row.spendCap === 0) {
-              return h('span', { style: { color: '#999' } }, t('menus.adAccount.unlimited'))
-            }
-            return formatCurrency(row.spendCap, row.currency)
-          }
-        },
-        // 13. 已花费
-        {
-          prop: 'spentAmount',
-          label: t('menus.adAccount.columns.spentAmount'),
-          minWidth: 140,
-          formatter: (row: FbAdAccountDetail) => formatCurrency(row.amountSpent, row.currency)
-        },
-        // 14. 余额
+        // 8. 账单金额 / 余额
         {
           prop: 'balance',
           label: t('menus.adAccount.columns.balance'),
           minWidth: 130,
           formatter: (row: FbAdAccountDetail) => formatCurrency(row.balance, row.currency)
         },
-        // 15. 备注
+        // 9. 门槛（FB无对应字段，用花费限额近似）
         {
-          prop: 'remark',
-          label: t('menus.adAccount.columns.remark'),
-          minWidth: 120,
-          formatter: () => '—'
-        },
-        // 16. 币种
-        {
-          prop: 'currency',
-          label: t('menus.adAccount.columns.currency'),
-          width: 80,
-          formatter: (row: FbAdAccountDetail) => row.currency || '—'
-        },
-        // 17. 账户类型
-        {
-          prop: 'accountType2',
-          label: t('menus.adAccount.columns.accountType'),
-          width: 90,
+          prop: 'spendCap',
+          label: t('menus.adAccount.columns.threshold'),
+          minWidth: 130,
           formatter: (row: FbAdAccountDetail) => {
-            return h(ElTag, { type: 'primary', size: 'small' }, () => row.platform || 'Facebook')
+            if (row.spendCap === 0)
+              return h('span', { style: { color: '#999' } }, t('menus.adAccount.unlimited'))
+            return formatCurrency(row.spendCap, row.currency)
           }
         },
-        // 18. 所有者角色
+        // 10. 日限额（FB已弃用daily_spend_limit，用spendCap作为日限额参考）
         {
-          prop: 'ownerBusinessId',
-          label: t('menus.adAccount.columns.ownerRole'),
-          minWidth: 140,
-          formatter: (row: FbAdAccountDetail) => row.ownerBusinessId || '—'
+          prop: 'dailySpendLimit',
+          label: t('menus.adAccount.columns.dailyLimit'),
+          minWidth: 120,
+          formatter: (row: FbAdAccountDetail) => {
+            if (row.dailySpendLimit > 0) return formatCurrency(row.dailySpendLimit, row.currency)
+            // 回退到 spendCap
+            if (row.spendCap > 0) return formatCurrency(row.spendCap, row.currency)
+            return h('span', { style: { color: '#999' } }, t('menus.adAccount.unlimited'))
+          }
         },
-        // 19. 支付方法
+        // 11. 总花费
+        {
+          prop: 'amountSpent',
+          label: t('menus.adAccount.columns.totalSpend'),
+          minWidth: 140,
+          formatter: (row: FbAdAccountDetail) => formatCurrency(row.amountSpent, row.currency)
+        },
+        // 12. 已花费
+        {
+          prop: 'spentAmount',
+          label: t('menus.adAccount.columns.spentAmount'),
+          minWidth: 140,
+          formatter: (row: FbAdAccountDetail) => formatCurrency(row.amountSpent, row.currency)
+        },
+        // 13. 支付方法
         {
           prop: 'fundingSource',
           label: t('menus.adAccount.columns.paymentMethod'),
           minWidth: 150,
-          formatter: (row: FbAdAccountDetail) => row.fundingSource || '—'
+          formatter: (row: FbAdAccountDetail) => formatPaymentMethod(row.fundingSource)
         },
-        // 20. 账单期
+        // 14. 账单期
         {
           prop: 'nextBillDate',
           label: t('menus.adAccount.columns.billPeriod'),
           minWidth: 120,
-          formatter: (row: FbAdAccountDetail) => formatDateOnly(row.nextBillDate)
+          formatter: (row: FbAdAccountDetail) => {
+            if (row.nextBillDate) return formatDateOnly(row.nextBillDate)
+            return '—'
+          }
         },
-        // 21. 锁定原因
+        // 15. 锁定原因
         {
           prop: 'disableReason',
           label: t('menus.adAccount.columns.lockReason'),
           minWidth: 130,
           formatter: (row: FbAdAccountDetail) => {
             if (row.disableReason === 0) return '—'
-            return row.disableReasonLabel || `状态码: ${row.disableReason}`
+            if (row.disableReasonLabel)
+              return h(ElTag, { type: 'danger', size: 'small' }, () => row.disableReasonLabel)
+            return `状态码: ${row.disableReason}`
           }
         },
-        // 22. 创建日期
+        // 16. 创建日期
         {
           prop: 'createdTime',
           label: t('menus.adAccount.columns.createdTime'),
           minWidth: 170,
           formatter: (row: FbAdAccountDetail) => formatDate(row.createdTime)
         },
-        // 23. 时区
+        // 17. 时区
         {
           prop: 'timezoneName',
           label: t('menus.adAccount.columns.timezone'),
-          minWidth: 140,
+          minWidth: 150,
           formatter: (row: FbAdAccountDetail) => {
             let tz = row.timezoneName || '—'
             if (row.timezoneOffset != null && row.timezoneName) {
@@ -298,52 +277,65 @@
             return tz
           }
         },
-        // 24. 原始ID
+        // 18. 国家编码
         {
-          prop: 'originalId',
-          label: t('menus.adAccount.columns.originalId'),
-          minWidth: 160,
-          formatter: (row: FbAdAccountDetail) => row.accountId || row.id || '—'
+          prop: 'countryCode',
+          label: t('menus.adAccount.columns.countryCode'),
+          width: 95,
+          formatter: (row: FbAdAccountDetail) => {
+            if (row.countryCode) return row.countryCode
+            return '—'
+          }
         },
-        // 25. 创建自BM
-        {
-          prop: 'createdFromBm',
-          label: t('menus.adAccount.columns.createdFromBm'),
-          minWidth: 150,
-          formatter: (row: FbAdAccountDetail) => row.businessName || '—'
-        },
-        // 26. 所属BM
+        // 19. 所属BM
         {
           prop: 'bmName',
           label: t('menus.adAccount.columns.bmName'),
           minWidth: 150,
           formatter: (row: FbAdAccountDetail) => row.businessName || '—'
         },
-        // 27. 国家编码
+        // 20. 创建自BM
         {
-          prop: 'countryCode',
-          label: t('menus.adAccount.columns.countryCode'),
-          width: 100,
-          formatter: (row: FbAdAccountDetail) => {
-            if (row.countryCode) return row.countryCode
-            // fallback: extract from timezone
-            if (row.timezoneName) {
-              const parts = row.timezoneName.split('/')
-              return parts.length === 2 ? parts[0] : row.timezoneName
-            }
-            return '—'
-          }
+          prop: 'createdFromBm',
+          label: t('menus.adAccount.columns.createdFromBm'),
+          minWidth: 140,
+          formatter: (row: FbAdAccountDetail) => row.businessName || '—'
         },
-        // 28. 支付记录
+        // 21. 备注
+        {
+          prop: 'remark',
+          label: t('menus.adAccount.columns.remark'),
+          minWidth: 120,
+          formatter: () => '—'
+        },
+        // 22. 支付记录
         {
           prop: 'paymentRecord',
           label: t('menus.adAccount.columns.paymentRecord'),
-          minWidth: 120,
-          formatter: () => '—'
+          width: 100,
+          formatter: (row: FbAdAccountDetail) => {
+            return h(
+              ElButton,
+              {
+                size: 'small',
+                onClick: () => showPaymentHistory(row)
+              },
+              () => t('menus.adAccount.viewPayments')
+            )
+          }
         }
       ]
     }
   })
+
+  // ==================== 支付记录弹窗 ====================
+  const showPaymentHistory = (row: FbAdAccountDetail) => {
+    // TODO: 实现支付历史记录查询弹窗
+    ElMessage.info(`支付记录功能开发中 — 账户: ${row.accountId || row.id}`)
+  }
+
+  // Need to import ElMessage
+  import { ElMessage } from 'element-plus'
 </script>
 
 <style lang="scss" scoped>

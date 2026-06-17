@@ -964,8 +964,6 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 	defer rows.Close()
 
 	var allAccounts []models.FbAdAccountDetail
-	var mu sync.Mutex
-	var wg sync.WaitGroup
 
 	for rows.Next() {
 		var (
@@ -1004,27 +1002,17 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 					accID := getString(acc, "id") // act_xxx 格式
 					detail := s.parseAdAccountDetail(acc, fbUserID, fbUserName)
 
-					// 并行获取每个广告账户的详细信息（日限额、支付方法、账单期等）
+					// 通过单个账户端点获取高级字段
 					if accID != "" {
-						wg.Add(1)
-						go func(adAccountID string, base models.FbAdAccountDetail) {
-							defer wg.Done()
-							enriched := s.enrichAdAccountDetail(adAccountID, accessToken, base)
-							mu.Lock()
-							allAccounts = append(allAccounts, enriched)
-							mu.Unlock()
-						}(accID, detail)
+						enriched := s.enrichAdAccountDetail(accID, accessToken, detail)
+						allAccounts = append(allAccounts, enriched)
 					} else {
-						mu.Lock()
 						allAccounts = append(allAccounts, detail)
-						mu.Unlock()
 					}
 				}
 			}
 		}
 	}
-
-	wg.Wait()
 
 	if allAccounts == nil {
 		allAccounts = []models.FbAdAccountDetail{}
@@ -1038,9 +1026,10 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 
 // enrichAdAccountDetail 通过单个广告账户端点获取详细字段并合并
 func (s *FbService) enrichAdAccountDetail(adAccountID, accessToken string, base models.FbAdAccountDetail) models.FbAdAccountDetail {
-	// 请求高级字段（仅单个账户端点支持）
-	detailFields := "daily_spend_limit,funding_source_details,disable_reason,next_bill_date,business_country_code,is_personal"
-
+	log.Printf("[FB-ENRICH] 开始获取 %s 的高级字段...", adAccountID)
+	// 分批请求：先测试哪些字段可用
+	// 第一批：已验证可用的字段
+	detailFields := "funding_source_details{display_string,type},disable_reason,business_country_code,is_personal"
 	resp, err := s.fbGet(
 		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
 		map[string]string{
@@ -1049,36 +1038,67 @@ func (s *FbService) enrichAdAccountDetail(adAccountID, accessToken string, base 
 		},
 	)
 	if err != nil {
-		log.Printf("[FB] 获取账户 %s 详细字段失败: %v", adAccountID, err)
-		return base
-	}
-
-	// 解析详细字段
-	if v, ok := resp["daily_spend_limit"]; ok {
-		base.DailySpendLimit = toFloat64(v)
-	}
-	if fs, ok := resp["funding_source_details"].(map[string]interface{}); ok {
-		base.FundingSource = getString(fs, "display_string")
-		if base.FundingSource == "" {
-			base.FundingSource = getString(fs, "type")
+		log.Printf("[FB-ENRICH] %s 第一批字段失败: %v", adAccountID, err)
+	} else {
+		log.Printf("[FB-ENRICH] %s 第一批字段响应: funding_source_details=%v, disable_reason=%v, business_country_code=%v, is_personal=%v",
+			adAccountID, resp["funding_source_details"], resp["disable_reason"], resp["business_country_code"], resp["is_personal"])
+		// 支付方法
+		if fs, ok := resp["funding_source_details"].(map[string]interface{}); ok {
+			base.FundingSource = getString(fs, "display_string")
+			if base.FundingSource == "" {
+				base.FundingSource = getString(fs, "type")
+			}
 		}
-	}
-	if v, ok := resp["disable_reason"]; ok {
-		if dr, ok := v.(float64); ok {
-			base.DisableReason = int(dr)
+		// 锁定原因
+		if v, ok := resp["disable_reason"]; ok {
+			base.DisableReason = int(toFloat64(v))
 			base.DisableReasonLabel = s.getDisableReasonLabel(base.DisableReason)
 		}
-	}
-	if v, ok := resp["next_bill_date"].(string); ok {
-		base.NextBillDate = v
-	}
-	if v, ok := resp["business_country_code"].(string); ok {
-		base.CountryCode = v
-	}
-	if _, ok := resp["is_personal"]; ok {
-		base.IsPersonal = getInt(resp, "is_personal")
+		// 国家编码
+		if v, ok := resp["business_country_code"].(string); ok && v != "" {
+			base.CountryCode = v
+		}
+		// 是否个人账户
+		if v, ok := resp["is_personal"]; ok {
+			base.IsPersonal = int(toFloat64(v))
+		}
 	}
 
+	// 第二批：日限额（可能已弃用，需要特殊权限）和账单日期
+	detailFields2 := "next_bill_date"
+	resp2, err2 := s.fbGet(
+		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
+		map[string]string{
+			"fields":       detailFields2,
+			"access_token": accessToken,
+		},
+	)
+	if err2 != nil {
+		log.Printf("[FB-ENRICH] %s 第二批字段失败: %v", adAccountID, err2)
+	} else {
+		log.Printf("[FB-ENRICH] %s 第二批字段响应: %v", adAccountID, resp2)
+		if v, ok := resp2["next_bill_date"].(string); ok {
+			base.NextBillDate = v
+		}
+	}
+
+	// 日限额单独测试（可能已弃用）
+	resp3, err3 := s.fbGet(
+		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
+		map[string]string{
+			"fields":       "daily_spend_limit",
+			"access_token": accessToken,
+		},
+	)
+	if err3 != nil {
+		log.Printf("[FB-ENRICH] %s daily_spend_limit 不可用: %v", adAccountID, err3)
+	} else if v, ok := resp3["daily_spend_limit"]; ok {
+		base.DailySpendLimit = toFloat64(v)
+		log.Printf("[FB-ENRICH] %s daily_spend_limit=%v", adAccountID, v)
+	}
+
+	log.Printf("[FB-ENRICH] %s 完成: dailySpendLimit=%.2f, fundingSource=%s, disableReason=%d, nextBillDate=%s, countryCode=%s, isPersonal=%d",
+		adAccountID, base.DailySpendLimit, base.FundingSource, base.DisableReason, base.NextBillDate, base.CountryCode, base.IsPersonal)
 	return base
 }
 
