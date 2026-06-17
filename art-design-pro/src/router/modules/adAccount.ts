@@ -29,6 +29,16 @@ export const adAccountRoutes: AppRouteRecord = {
         keepAlive: true,
         roles: ['R_SUPER', 'R_ADMIN']
       }
+    },
+    {
+      path: 'bm',
+      name: 'AdAccountBm',
+      component: '/ad-account/bm/index',
+      meta: {
+        title: 'menus.adAccount.bm',
+        keepAlive: true,
+        roles: ['R_SUPER', 'R_ADMIN']
+      }
     }
   ]
 }

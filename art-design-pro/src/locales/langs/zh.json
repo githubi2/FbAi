@@ -48,11 +48,20 @@
   "setting": {
     "menuType": {
       "title": "菜单布局",
-      "list": ["垂直", "水平", "混合", "双列"]
+      "list": [
+        "垂直",
+        "水平",
+        "混合",
+        "双列"
+      ]
     },
     "theme": {
       "title": "主题风格",
-      "list": ["浅色", "深色", "系统"]
+      "list": [
+        "浅色",
+        "深色",
+        "系统"
+      ]
     },
     "menu": {
       "title": "菜单风格"
@@ -62,11 +71,17 @@
     },
     "box": {
       "title": "盒子样式",
-      "list": ["边框", "阴影"]
+      "list": [
+        "边框",
+        "阴影"
+      ]
     },
     "container": {
       "title": "容器宽度",
-      "list": ["铺满", "定宽"]
+      "list": [
+        "铺满",
+        "定宽"
+      ]
     },
     "basics": {
       "title": "基础配置",
@@ -112,8 +127,14 @@
   "notice": {
     "title": "通知",
     "btnRead": "标为已读",
-    "bar": ["通知", "消息", "代办"],
-    "text": ["暂无"],
+    "bar": [
+      "通知",
+      "消息",
+      "代办"
+    ],
+    "text": [
+      "暂无"
+    ],
     "viewAll": "查看全部"
   },
   "worktab": {
@@ -293,6 +314,7 @@
         "status": "状态",
         "adPerm": "广告权限",
         "bm": "BM",
+        "bmId": "BM ID",
         "adAccounts": "广告户",
         "validity": "授权有效期",
         "authTime": "授权时间",
@@ -337,7 +359,9 @@
       "platformPlaceholder": "请选择平台",
       "statusActive": "启用",
       "statusDisabled": "禁用",
-      "statusPlaceholder": "请选择状态"
+      "statusPlaceholder": "请选择状态",
+      "bm": "BM管理",
+      "noData": "暂无BM数据"
     }
   },
   "table": {
