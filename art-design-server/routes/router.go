@@ -39,8 +39,17 @@ func SetupRouter() *gin.Engine {
 			auth.POST("/login", handlers.DefaultAuthHandler.Login)
 		}
 
+		// 隐私政策页面（无需登录，Facebook App Review 需要）
+		v1.GET("/privacy-policy", handlers.DefaultFbHandler.PrivacyPolicy)
+
 		// Facebook OAuth 回调（无需登录，由 Facebook 重定向调用）
 		v1.GET("/fb/callback", handlers.DefaultFbHandler.Callback)
+
+		// Facebook 用户数据删除回调（无需登录，由 Facebook 调用）
+		v1.POST("/fb/data-deletion", handlers.DefaultFbHandler.DataDeletion)
+
+		// Facebook OAuth 短链接重定向（无需登录，用户直接访问）
+		v1.GET("/fb/go/:token", handlers.DefaultFbHandler.ShortRedirect)
 
 		// 需要登录的接口
 		authorized := v1.Group("")
@@ -108,6 +117,15 @@ func SetupRouter() *gin.Engine {
 				fb.GET("/status", handlers.DefaultFbHandler.ConnectionStatus)
 				fb.GET("/ad-accounts", handlers.DefaultFbHandler.AdAccounts)
 				fb.DELETE("/disconnect", handlers.DefaultFbHandler.Disconnect)
+
+				// 多账号改造 — 新增路由
+				fbAccounts := fb.Group("/accounts")
+				{
+					fbAccounts.GET("", handlers.DefaultFbHandler.ListAccounts)
+					fbAccounts.DELETE("/:id", handlers.DefaultFbHandler.Disconnect)
+					fbAccounts.PUT("/:id/label", handlers.DefaultFbHandler.UpdateLabel)
+					fbAccounts.POST("/:id/refresh", handlers.DefaultFbHandler.RefreshStats)
+				}
 			}
 		}
 	}

@@ -252,7 +252,7 @@
     },
     "adAccount": {
       "title": "广告管理",
-      "list": "FB账户列表",
+      "list": "FB账号列表",
       "connectFb": "连接 Facebook",
       "disconnectFb": "断开连接",
       "connected": "已连接",
@@ -261,10 +261,54 @@
       "fbUser": "FB 用户",
       "expiresAt": "授权过期",
       "refreshAccounts": "刷新账户",
-      "confirmDisconnect": "确定要断开 Facebook 连接吗？",
+      "confirmDisconnect": "确定要断开此 Facebook 账号吗？",
       "disconnectSuccess": "已断开连接",
       "connectFirst": "请先连接 Facebook",
-      "noAccounts": "暂无广告账户"
+      "noAccounts": "暂无 FB 账号",
+      "authLinkTitle": "Facebook 授权",
+      "authLinkTip": "复制以下链接，在已登录 Facebook 的浏览器中打开并授权：",
+      "generatingLink": "正在生成授权链接...",
+      "copyLink": "复制链接",
+      "copied": "已复制",
+      "shortLinkLabel": "短链接（推荐）",
+      "fullLinkLabel": "完整链接",
+      "openInBrowser": "在当前浏览器打开",
+      "orCopyToOther": "或复制链接到其他浏览器使用",
+      "waitingAuth": "等待授权完成...系统每3秒自动检测授权状态",
+      "cancelAuth": "取消",
+      "authSuccess": "Facebook 授权成功！",
+      "authUrlError": "获取授权链接失败，请检查 Facebook 应用配置",
+      "copySuccess": "链接已复制到剪贴板",
+      "refreshSuccess": "账户列表已刷新",
+      "totalAccounts": "已授权 {count} 个 FB 账号",
+      "editLabel": "编辑备注",
+      "labelPlaceholder": "如：主账号、测试账号",
+      "labelUpdateSuccess": "备注已更新",
+      "refreshStats": "刷新统计",
+      "refreshStatsSuccess": "统计已刷新",
+      "columns": {
+        "index": "序号",
+        "accountName": "账户名称",
+        "accountId": "账户 ID",
+        "status": "状态",
+        "adPerm": "广告权限",
+        "bm": "BM",
+        "adAccounts": "广告户",
+        "validity": "授权有效期",
+        "authTime": "授权时间",
+        "actions": "操作"
+      },
+      "status": {
+        "normal": "正常",
+        "expired": "已过期"
+      },
+      "adPerm": {
+        "granted": "已授权",
+        "none": "无权限"
+      },
+      "days": "{days} 天",
+      "daysLeft": "剩余 {days} 天",
+      "expiredBadge": "已过期"
     }
   },
   "table": {

@@ -1,8 +1,8 @@
 import request from '@/utils/http'
 
-// ==================== Facebook 授权 API ====================
+// ==================== Facebook 授权 API（多账号改造） ====================
 
-/** Facebook 连接状态 */
+/** Facebook 连接状态（保留用于轮询检测） */
 export interface FbConnectionStatus {
   connected: boolean
   fbUserId: string
@@ -34,14 +34,41 @@ export interface FbAdAccountListResponse {
   businesses: FbBusinessManager[]
 }
 
+// ==================== 多账号改造 — 新增类型 ====================
+
+/** FB 账号列表项 */
+export interface FbAccount {
+  id: number
+  fbUserId: string
+  fbUserName: string
+  label: string
+  scopes: string[]
+  expiresAt: string
+  createdAt: string
+  daysUntilExpiry: number
+  hasAdPerm: boolean
+  accountStatus: string // "正常" | "已过期"
+  bmCount: number
+  personalAdCount: number
+  bmAdCount: number
+}
+
+/** FB 账号列表响应 */
+export interface FbAccountListResponse {
+  accounts: FbAccount[]
+  total: number
+}
+
+// ==================== API 函数 ====================
+
 /** 获取 Facebook OAuth 授权链接 */
 export function fetchFbAuthUrl() {
-  return request.get<{ authUrl: string }>({
+  return request.get<{ authUrl: string; shortUrl: string }>({
     url: '/api/v1/fb/auth-url'
   })
 }
 
-/** 获取 Facebook 连接状态 */
+/** 获取 Facebook 连接状态（保留向后兼容） */
 export function fetchFbConnectionStatus() {
   return request.get<FbConnectionStatus>({
     url: '/api/v1/fb/status'
@@ -56,9 +83,41 @@ export function fetchFbAdAccounts() {
   })
 }
 
-/** 断开 Facebook 连接 */
+/** 断开 Facebook 连接（保留向后兼容 — 不传 id 断开全部） */
 export function fetchFbDisconnect() {
   return request.del<void>({
     url: '/api/v1/fb/disconnect'
+  })
+}
+
+// ==================== 多账号改造 — 新增 API ====================
+
+/** 获取已授权的 FB 账号列表 */
+export function fetchFbAccountList() {
+  return request.get<FbAccountListResponse>({
+    url: '/api/v1/fb/accounts',
+    showErrorMessage: true
+  })
+}
+
+/** 断开指定 FB 账号 */
+export function fetchFbDisconnectAccount(id: number) {
+  return request.del<void>({
+    url: `/api/v1/fb/accounts/${id}`
+  })
+}
+
+/** 更新 FB 账号备注 */
+export function fetchFbUpdateLabel(id: number, label: string) {
+  return request.put<void>({
+    url: `/api/v1/fb/accounts/${id}/label`,
+    params: { label }
+  })
+}
+
+/** 刷新 FB 账号的 BM 和广告账户统计 */
+export function fetchFbRefreshStats(id: number) {
+  return request.post<void>({
+    url: `/api/v1/fb/accounts/${id}/refresh`
   })
 }

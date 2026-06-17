@@ -102,13 +102,12 @@ func (s *FbService) GetAuthURL(userID uint, tenantID *uint) (string, error) {
 	state := fmt.Sprintf("%x:%s", userID, nonce)
 
 	// 存储 state 用于回调验证（5分钟有效），同时存储 tenant_id
+	// 多账号改造：pending 记录 status=0，不受 unique 约束限制，直接 INSERT
 	if db.Pool != nil {
 		ctx := context.Background()
 		_, err := db.Pool.Exec(ctx,
 			`INSERT INTO fb_tokens (user_id, tenant_id, access_token, status, created_at, updated_at)
-			 VALUES ($1, $2, $3, 0, NOW(), NOW())
-			 ON CONFLICT (user_id) DO UPDATE
-			 SET access_token = $3, tenant_id = $2, status = 0, updated_at = NOW()`,
+			 VALUES ($1, $2, $3, 0, NOW(), NOW())`,
 			userID, tenantID, "pending:"+state,
 		)
 		if err != nil {
@@ -371,7 +370,9 @@ func (s *FbService) getFbUserInfo(accessToken string) (userID, userName string) 
 	return user.ID, user.Name
 }
 
-// SaveToken 保存或更新用户的 Facebook token
+// SaveToken 保存或更新用户的 Facebook token（多账号支持）
+// 同一用户授权同一个 FB 账号 → 刷新 token（UPDATE）
+// 同一用户授权不同 FB 账号 → 新增记录（INSERT）
 func (s *FbService) SaveToken(userID uint, tenantID *uint, token *models.FbToken) error {
 	if db.Pool == nil {
 		return fmt.Errorf("数据库未连接")
@@ -388,11 +389,13 @@ func (s *FbService) SaveToken(userID uint, tenantID *uint, token *models.FbToken
 	}
 	scopesArr += "}"
 
+	// 多账号改造：ON CONFLICT (user_id, fb_user_id) WHERE status=1
+	// 部分唯一索引：同一用户+同一FB账号只保留一条有效记录
 	_, err := db.Pool.Exec(ctx,
 		`INSERT INTO fb_tokens (user_id, tenant_id, fb_user_id, fb_user_name, access_token, token_type, expires_at, scopes, status, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, NOW(), NOW())
-		 ON CONFLICT (user_id) DO UPDATE
-		 SET tenant_id = $2, fb_user_id = $3, fb_user_name = $4, access_token = $5, token_type = $6,
+		 ON CONFLICT (user_id, fb_user_id) WHERE status = 1 DO UPDATE
+		 SET tenant_id = $2, fb_user_name = $4, access_token = $5, token_type = $6,
 		     expires_at = $7, scopes = $8, status = 1, updated_at = NOW()`,
 		userID, tenantID, token.FbUserID, token.FbUserName, token.AccessToken,
 		token.TokenType, token.ExpiresAt, scopesArr,
@@ -418,13 +421,13 @@ func (s *FbService) GetToken(userID uint, tenantID *uint) (*models.FbToken, erro
 	var tid *uint
 
 	err := db.Pool.QueryRow(ctx,
-		`SELECT id, user_id, tenant_id, fb_user_id, fb_user_name, access_token, token_type, expires_at,
+		`SELECT id, user_id, tenant_id, fb_user_id, fb_user_name, COALESCE(label, ''), access_token, token_type, expires_at,
 		        COALESCE(scopes::text, '[]'), COALESCE(bm_list::text, '[]'), COALESCE(ad_accounts::text, '[]'),
 		        selected_ad_account_id, status, created_at, updated_at
 		 FROM fb_tokens WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
 		userID, tenantID,
 	).Scan(&token.ID, &token.UserID, &tid, &token.FbUserID, &token.FbUserName,
-		&token.AccessToken, &token.TokenType, &expiresAt,
+		&token.Label, &token.AccessToken, &token.TokenType, &expiresAt,
 		&scopesStr, &bmListStr, &adAccsStr,
 		&token.SelectedAdAccountID, &token.Status, &token.CreatedAt, &token.UpdatedAt)
 
@@ -544,8 +547,8 @@ func (s *FbService) GetAdAccounts(userID uint, tenantID *uint) (*models.FbAdAcco
 	}, nil
 }
 
-// Disconnect 断开 Facebook 连接（租户隔离）
-func (s *FbService) Disconnect(userID uint, tenantID *uint) error {
+// Disconnect 断开指定 Facebook 连接（按主键 ID，租户隔离）
+func (s *FbService) Disconnect(id uint, userID uint, tenantID *uint) error {
 	if db.Pool == nil {
 		return fmt.Errorf("数据库未连接")
 	}
@@ -553,10 +556,266 @@ func (s *FbService) Disconnect(userID uint, tenantID *uint) error {
 	ctx := context.Background()
 	_, err := db.Pool.Exec(ctx,
 		`UPDATE fb_tokens SET status = 0, updated_at = NOW()
-		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2`,
+		 WHERE id = $1 AND user_id = $2 AND tenant_id IS NOT DISTINCT FROM $3`,
+		id, userID, tenantID,
+	)
+	return err
+}
+
+// DisconnectAll 断开用户所有已连接的 FB 账号（租户隔离）
+func (s *FbService) DisconnectAll(userID uint, tenantID *uint) error {
+	if db.Pool == nil {
+		return fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE fb_tokens SET status = 0, updated_at = NOW()
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
 		userID, tenantID,
 	)
 	return err
+}
+
+// GetTokenByID 按主键获取指定 token（租户隔离）
+func (s *FbService) GetTokenByID(id uint, userID uint, tenantID *uint) (*models.FbToken, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	var token models.FbToken
+	var scopesStr string
+	var bmListStr, adAccsStr string
+	var expiresAt time.Time
+	var tid *uint
+
+	err := db.Pool.QueryRow(ctx,
+		`SELECT id, user_id, tenant_id, fb_user_id, fb_user_name, COALESCE(label, ''), access_token, token_type, expires_at,
+		        COALESCE(scopes::text, '[]'), COALESCE(bm_list::text, '[]'), COALESCE(ad_accounts::text, '[]'),
+		        selected_ad_account_id, status, created_at, updated_at
+		 FROM fb_tokens WHERE id = $1 AND user_id = $2 AND tenant_id IS NOT DISTINCT FROM $3 AND status = 1`,
+		id, userID, tenantID,
+	).Scan(&token.ID, &token.UserID, &tid, &token.FbUserID, &token.FbUserName,
+		&token.Label, &token.AccessToken, &token.TokenType, &expiresAt,
+		&scopesStr, &bmListStr, &adAccsStr,
+		&token.SelectedAdAccountID, &token.Status, &token.CreatedAt, &token.UpdatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("未找到指定的 Facebook 授权: %w", err)
+	}
+
+	token.TenantID = tid
+	token.ExpiresAt = expiresAt
+	token.BmList = bmListStr
+	token.AdAccounts = adAccsStr
+	token.Scopes = parsePgArray(scopesStr)
+
+	return &token, nil
+}
+
+// ListAccounts 获取用户所有已授权的 FB 账号列表（租户隔离）
+func (s *FbService) ListAccounts(userID uint, tenantID *uint) (*models.FbAccountListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id, fb_user_id, fb_user_name, COALESCE(label, ''), COALESCE(scopes::text, '{}'),
+		        expires_at, created_at, COALESCE(bm_list::text, '[]'), COALESCE(ad_accounts::text, '[]')
+		 FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1
+		 ORDER BY created_at DESC`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询 FB 账号列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var accounts []models.FbAccountListItem
+	now := time.Now()
+
+	for rows.Next() {
+		var (
+			id            uint
+			fbUserID      string
+			fbUserName    string
+			label         string
+			scopesStr     string
+			expiresAt     time.Time
+			createdAt     time.Time
+			bmListStr     string
+			adAccountsStr string
+		)
+		if err := rows.Scan(&id, &fbUserID, &fbUserName, &label, &scopesStr,
+			&expiresAt, &createdAt, &bmListStr, &adAccountsStr); err != nil {
+			log.Printf("[FB] 扫描账号行失败: %v", err)
+			continue
+		}
+
+		scopes := parsePgArray(scopesStr)
+
+		// 检查是否有广告权限
+		hasAdPerm := false
+		for _, sc := range scopes {
+			if sc == "ads_read" || sc == "ads_management" {
+				hasAdPerm = true
+				break
+			}
+		}
+
+		// 计算 BM 数量和个人/BM 广告账户数量
+		bmCount := 0
+		personalAdCount := 0
+		bmAdCount := 0
+
+		if bmListStr != "" {
+			var bmList []map[string]interface{}
+			if err := json.Unmarshal([]byte(bmListStr), &bmList); err == nil {
+				bmCount = len(bmList)
+			}
+		}
+
+		if adAccountsStr != "" {
+			var adAccs []map[string]interface{}
+			if err := json.Unmarshal([]byte(adAccountsStr), &adAccs); err == nil {
+				for _, acc := range adAccs {
+					if _, hasBusiness := acc["business"]; hasBusiness {
+						bmAdCount++
+					} else {
+						personalAdCount++
+					}
+				}
+			}
+		}
+
+		// 计算剩余天数
+		daysUntilExpiry := int(expiresAt.Sub(now).Hours() / 24)
+
+		// 判断账号状态
+		accountStatus := "正常"
+		if daysUntilExpiry < 0 {
+			accountStatus = "已过期"
+		}
+
+		accounts = append(accounts, models.FbAccountListItem{
+			ID:              id,
+			FbUserID:        fbUserID,
+			FbUserName:      fbUserName,
+			Label:           label,
+			Scopes:          scopes,
+			ExpiresAt:       expiresAt.Format(time.RFC3339),
+			CreatedAt:       createdAt.Format(time.RFC3339),
+			DaysUntilExpiry: daysUntilExpiry,
+			HasAdPerm:       hasAdPerm,
+			AccountStatus:   accountStatus,
+			BmCount:         bmCount,
+			PersonalAdCount: personalAdCount,
+			BmAdCount:       bmAdCount,
+		})
+	}
+
+	if accounts == nil {
+		accounts = []models.FbAccountListItem{}
+	}
+
+	return &models.FbAccountListResponse{
+		Accounts: accounts,
+		Total:    len(accounts),
+	}, nil
+}
+
+// UpdateLabel 更新 FB 账号备注（租户隔离）
+func (s *FbService) UpdateLabel(id uint, userID uint, tenantID *uint, label string) error {
+	if db.Pool == nil {
+		return fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	result, err := db.Pool.Exec(ctx,
+		`UPDATE fb_tokens SET label = $1, updated_at = NOW()
+		 WHERE id = $2 AND user_id = $3 AND tenant_id IS NOT DISTINCT FROM $4 AND status = 1`,
+		label, id, userID, tenantID,
+	)
+	if err != nil {
+		return fmt.Errorf("更新备注失败: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("未找到指定的 FB 账号")
+	}
+
+	return nil
+}
+
+// RefreshAccountStats 刷新指定 FB 账号的 BM 和广告账户缓存（租户隔离）
+func (s *FbService) RefreshAccountStats(id uint, userID uint, tenantID *uint) error {
+	token, err := s.GetTokenByID(id, userID, tenantID)
+	if err != nil {
+		return err
+	}
+
+	s.init()
+
+	// 获取广告账户
+	adAccResp, err := s.fbGet(
+		fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
+		map[string]string{
+			"fields":       "id,name,account_status,currency,business{name}",
+			"access_token": token.AccessToken,
+			"limit":        "100",
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("获取广告账户失败: %w", err)
+	}
+
+	var adAccounts []map[string]interface{}
+	if data, ok := adAccResp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if acc, ok := item.(map[string]interface{}); ok {
+				adAccounts = append(adAccounts, acc)
+			}
+		}
+	}
+
+	// 获取 BM 列表
+	bmResp, err := s.fbGet(
+		fmt.Sprintf("/%s/me/businesses", s.graphVer),
+		map[string]string{
+			"fields":       "id,name",
+			"access_token": token.AccessToken,
+			"limit":        "100",
+		},
+	)
+
+	var businesses []map[string]interface{}
+	if err == nil {
+		if data, ok := bmResp["data"].([]interface{}); ok {
+			for _, item := range data {
+				if bm, ok := item.(map[string]interface{}); ok {
+					businesses = append(businesses, bm)
+				}
+			}
+		}
+	}
+
+	// 缓存到数据库
+	accJSON, _ := json.Marshal(adAccounts)
+	bmJSON, _ := json.Marshal(businesses)
+	ctx := context.Background()
+	_, err = db.Pool.Exec(ctx,
+		`UPDATE fb_tokens SET ad_accounts = $1, bm_list = $2, updated_at = NOW()
+		 WHERE id = $3 AND user_id = $4 AND tenant_id IS NOT DISTINCT FROM $5`,
+		string(accJSON), string(bmJSON), id, userID, tenantID,
+	)
+	if err != nil {
+		return fmt.Errorf("缓存账户数据失败: %w", err)
+	}
+
+	return nil
 }
 
 // fbGet 调用 Facebook Graph API (GET)

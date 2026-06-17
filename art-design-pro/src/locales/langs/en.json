@@ -261,10 +261,54 @@
       "fbUser": "FB User",
       "expiresAt": "Expires",
       "refreshAccounts": "Refresh",
-      "confirmDisconnect": "Are you sure you want to disconnect?",
+      "confirmDisconnect": "Are you sure you want to disconnect this Facebook account?",
       "disconnectSuccess": "Disconnected successfully",
       "connectFirst": "Please connect Facebook first",
-      "noAccounts": "No ad accounts"
+      "noAccounts": "No FB accounts",
+      "authLinkTitle": "Facebook Authorization",
+      "authLinkTip": "Copy the link below and open it in a browser where Facebook is logged in:",
+      "generatingLink": "Generating authorization link...",
+      "copyLink": "Copy Link",
+      "copied": "Copied",
+      "shortLinkLabel": "Short Link (Recommended)",
+      "fullLinkLabel": "Full Link",
+      "openInBrowser": "Open in Browser",
+      "orCopyToOther": "Or copy link to another browser",
+      "waitingAuth": "Waiting for authorization... Checking every 3 seconds",
+      "cancelAuth": "Cancel",
+      "authSuccess": "Facebook authorization successful!",
+      "authUrlError": "Failed to get authorization link",
+      "copySuccess": "Link copied to clipboard",
+      "refreshSuccess": "Account list refreshed",
+      "totalAccounts": "{count} FB accounts authorized",
+      "editLabel": "Edit Label",
+      "labelPlaceholder": "e.g. Main Account, Test Account",
+      "labelUpdateSuccess": "Label updated",
+      "refreshStats": "Refresh Stats",
+      "refreshStatsSuccess": "Stats refreshed",
+      "columns": {
+        "index": "#",
+        "accountName": "Account Name",
+        "accountId": "Account ID",
+        "status": "Status",
+        "adPerm": "Ad Permissions",
+        "bm": "BM",
+        "adAccounts": "Ad Accounts",
+        "validity": "Validity",
+        "authTime": "Auth Time",
+        "actions": "Actions"
+      },
+      "status": {
+        "normal": "Normal",
+        "expired": "Expired"
+      },
+      "adPerm": {
+        "granted": "Granted",
+        "none": "None"
+      },
+      "days": "{days} days",
+      "daysLeft": "{days} days left",
+      "expiredBadge": "Expired"
     }
   },
   "table": {
