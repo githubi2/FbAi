@@ -640,7 +640,13 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      min-height: 24px;
       margin-bottom: 8px;
+
+      :deep(.el-checkbox) {
+        height: 24px;
+        line-height: 24px;
+      }
     }
 
     .admin-step-num {
