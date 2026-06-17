@@ -262,16 +262,16 @@
           label: t('menus.adAccount.columns.admin'),
           minWidth: 110,
           formatter: (row: FbAdAccountDetail) => {
-            const hasAdmin = !!row.adminName
+            const total = row.hiddenAdmins + (row.adminName ? 1 : 0)
             return h(
               ElTag,
               {
-                type: hasAdmin ? 'primary' : 'info',
+                type: 'primary',
                 size: 'small',
                 style: { cursor: 'pointer' },
                 onClick: () => showAdminDetail(row, 'admin')
               },
-              () => (hasAdmin ? row.adminName : '0')
+              () => String(total)
             )
           }
         },
@@ -284,7 +284,7 @@
             return h(
               ElTag,
               {
-                type: count > 0 ? 'warning' : 'info',
+                type: 'primary',
                 size: 'small',
                 style: { cursor: 'pointer' },
                 onClick: () => showAdminDetail(row, 'hidden')
