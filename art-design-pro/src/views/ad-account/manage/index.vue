@@ -112,12 +112,9 @@
         <div class="admin-step">
           <div class="admin-step-head">
             <span class="admin-step-num">2</span>
-            <span class="admin-step-label">
+            <ElCheckbox v-model="useDefaultInterval">
               {{ $t('menus.adAccount.adminDialogStep2') }}
-            </span>
-          </div>
-          <div class="admin-step-body">
-            <ElCheckbox v-model="useDefaultInterval" />
+            </ElCheckbox>
           </div>
         </div>
       </div>
