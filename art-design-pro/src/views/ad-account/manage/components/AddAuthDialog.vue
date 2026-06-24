@@ -67,14 +67,17 @@
 
         <!-- 步骤1：输入目标账号 -->
         <div class="auth-step">
-          <div class="auth-step-head">
+          <div class="auth-step-indicator">
             <span class="auth-step-num">1</span>
-            <span class="auth-step-label">
-              <span class="required-star">*</span>
-              {{ $t('menus.addAuth.step1Label') }}
-            </span>
+            <div class="auth-step-line"></div>
           </div>
           <div class="auth-step-body">
+            <div class="auth-step-head">
+              <span class="auth-step-label">
+                <span class="required-star">*</span>
+                {{ $t('menus.addAuth.step1Label') }}
+              </span>
+            </div>
             <ElInput
               v-model="uidInput"
               type="textarea"
@@ -87,11 +90,14 @@
 
         <!-- 步骤2：检测好友关系 -->
         <div class="auth-step">
-          <div class="auth-step-head">
+          <div class="auth-step-indicator">
             <span class="auth-step-num">2</span>
-            <span class="auth-step-label">{{ $t('menus.addAuth.step2Label') }}</span>
+            <div class="auth-step-line"></div>
           </div>
           <div class="auth-step-body">
+            <div class="auth-step-head">
+              <span class="auth-step-label">{{ $t('menus.addAuth.step2Label') }}</span>
+            </div>
             <ElButton type="success" class="detect-btn" :loading="detecting" @click="handleDetect">
               {{ $t('menus.addAuth.step2Button') }}
             </ElButton>
@@ -100,8 +106,10 @@
 
         <!-- 步骤3：系统默认执行时间间隔 -->
         <div class="auth-step">
-          <div class="auth-step-head">
+          <div class="auth-step-indicator">
             <span class="auth-step-num">3</span>
+          </div>
+          <div class="auth-step-head">
             <ElCheckbox v-model="useDefaultInterval" class="auth-step-label">
               {{ $t('menus.addAuth.step3Label') }}
             </ElCheckbox>
@@ -398,46 +406,20 @@
 
     /* 步骤 */
     .auth-step {
-      position: relative;
-      padding-left: 36px;
-      margin-bottom: 20px;
-
-      /* 连接线 */
-      &::before {
-        content: '';
-        position: absolute;
-        left: 11px;
-        top: 28px;
-        bottom: 0;
-        width: 2px;
-        background-color: var(--el-border-color);
-      }
-
-      &:last-child::before {
-        display: none;
-      }
-
-      &:not(:last-child) {
-        padding-bottom: 4px;
-      }
-
-      &:last-child {
-        margin-bottom: 0;
-      }
+      display: flex;
+      gap: 12px;
+      margin-bottom: 0;
     }
 
-    .auth-step-head {
+    .auth-step-indicator {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 12px;
-      min-height: 24px;
-      margin-bottom: 10px;
+      flex-shrink: 0;
+      width: 24px;
     }
 
     .auth-step-num {
-      position: absolute;
-      left: 0;
-      top: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -450,6 +432,41 @@
       font-weight: 600;
       line-height: 1;
       flex-shrink: 0;
+    }
+
+    .auth-step-line {
+      flex: 1;
+      width: 2px;
+      min-height: 12px;
+      background-color: var(--el-border-color);
+      margin-top: 4px;
+    }
+
+    .auth-step:last-child .auth-step-line {
+      display: none;
+    }
+
+    .auth-step-body {
+      flex: 1;
+      min-width: 0;
+      padding-bottom: 20px;
+    }
+
+    .auth-step:last-child .auth-step-body {
+      padding-bottom: 0;
+    }
+
+    .auth-step-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 24px;
+      margin-bottom: 10px;
+
+      :deep(.el-checkbox) {
+        height: 24px;
+        line-height: 24px;
+      }
     }
 
     .auth-step-label {

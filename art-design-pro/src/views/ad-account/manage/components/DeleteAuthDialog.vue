@@ -42,14 +42,17 @@
 
         <!-- 步骤1：输入目标账号 -->
         <div class="auth-step">
-          <div class="auth-step-head">
+          <div class="auth-step-indicator">
             <span class="auth-step-num">1</span>
-            <span class="auth-step-label">
-              <span class="required-star">*</span>
-              {{ $t('menus.deleteAuth.step1Label') }}
-            </span>
+            <div class="auth-step-line"></div>
           </div>
           <div class="auth-step-body">
+            <div class="auth-step-head">
+              <span class="auth-step-label">
+                <span class="required-star">*</span>
+                {{ $t('menus.deleteAuth.step1Label') }}
+              </span>
+            </div>
             <ElInput
               v-model="uidInput"
               type="textarea"
@@ -62,8 +65,11 @@
 
         <!-- 步骤2：删除当前FB账号权限 -->
         <div class="auth-step">
-          <div class="auth-step-head">
+          <div class="auth-step-indicator">
             <span class="auth-step-num">2</span>
+            <div class="auth-step-line"></div>
+          </div>
+          <div class="auth-step-head">
             <ElCheckbox v-model="deleteCurrentAccount" class="auth-step-label">
               {{ $t('menus.deleteAuth.step2Label') }}
             </ElCheckbox>
@@ -72,8 +78,10 @@
 
         <!-- 步骤3：系统默认执行时间间隔 -->
         <div class="auth-step">
-          <div class="auth-step-head">
+          <div class="auth-step-indicator">
             <span class="auth-step-num">3</span>
+          </div>
+          <div class="auth-step-head">
             <ElCheckbox v-model="useDefaultInterval" class="auth-step-label">
               {{ $t('menus.addAuth.step3Label') }}
             </ElCheckbox>
@@ -276,32 +284,54 @@
 
     /* 步骤 */
     .auth-step {
-      position: relative;
-      padding-left: 36px;
-      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      margin-bottom: 0;
+    }
 
-      /* 连接线 */
-      &::before {
-        content: '';
-        position: absolute;
-        left: 11px;
-        top: 28px;
-        bottom: 0;
-        width: 2px;
-        background-color: var(--el-border-color);
-      }
+    .auth-step-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+      width: 24px;
+    }
 
-      &:last-child::before {
-        display: none;
-      }
+    .auth-step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: var(--el-fill-color-dark);
+      color: var(--el-text-color-regular);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      flex-shrink: 0;
+    }
 
-      &:not(:last-child) {
-        padding-bottom: 4px;
-      }
+    .auth-step-line {
+      flex: 1;
+      width: 2px;
+      min-height: 12px;
+      background-color: var(--el-border-color);
+      margin-top: 4px;
+    }
 
-      &:last-child {
-        margin-bottom: 0;
-      }
+    .auth-step:last-child .auth-step-line {
+      display: none;
+    }
+
+    .auth-step-body {
+      flex: 1;
+      min-width: 0;
+      padding-bottom: 20px;
+    }
+
+    .auth-step:last-child .auth-step-body {
+      padding-bottom: 0;
     }
 
     .auth-step-head {
@@ -315,24 +345,6 @@
         height: 24px;
         line-height: 24px;
       }
-    }
-
-    .auth-step-num {
-      position: absolute;
-      left: 0;
-      top: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background-color: var(--el-fill-color-dark);
-      color: var(--el-text-color-regular);
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1;
-      flex-shrink: 0;
     }
 
     .auth-step-label {
