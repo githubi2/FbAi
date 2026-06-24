@@ -1491,3 +1491,152 @@ func (s *FbService) GetPaymentHistory(userID uint, tenantID *uint, adAccountID s
 		Total:   len(records),
 	}, nil
 }
+
+// ==================== 广告账户授权 ====================
+
+// fbPost 向 Facebook Graph API 发送 POST 请求
+func (s *FbService) fbPost(endpoint string, params map[string]string) (map[string]interface{}, error) {
+	s.init()
+
+	result, err := DefaultFbRateLimiter.Do(context.Background(), endpoint, func() (interface{}, error) {
+		// 构建表单数据
+		formData := url.Values{}
+		for k, v := range params {
+			formData.Set(k, v)
+		}
+
+		resp, reqErr := s.httpClient.PostForm(s.graphAPI+endpoint, formData)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		defer resp.Body.Close()
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, readErr
+		}
+
+		var result map[string]interface{}
+		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+			return nil, fmt.Errorf("解析 Facebook API 响应失败: %w", jsonErr)
+		}
+
+		// 检查 Facebook 错误
+		if errMsg, ok := result["error"].(map[string]interface{}); ok {
+			return nil, fmt.Errorf("Facebook API 错误: %v", errMsg["message"])
+		}
+
+		return result, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result.(map[string]interface{}), nil
+}
+
+// AssignAdAccountUser 将用户分配到广告账户（调用 FB Graph API）
+func (s *FbService) AssignAdAccountUser(userID uint, tenantID *uint, req *models.FbAssignUserRequest) (*models.FbAssignUserResponse, error) {
+	token, err := s.GetToken(userID, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("获取 FB token 失败: %w", err)
+	}
+
+	s.init()
+
+	response := &models.FbAssignUserResponse{
+		Results: make([]models.FbAssignUserResult, 0, len(req.AdAccountIDs)),
+		Total:   len(req.AdAccountIDs),
+	}
+
+	for _, adAccountID := range req.AdAccountIDs {
+		_, err := s.fbPost(
+			fmt.Sprintf("/%s/%s/users", s.graphVer, adAccountID),
+			map[string]string{
+				"user":         req.UserID,
+				"role":         req.Role,
+				"access_token": token.AccessToken,
+			},
+		)
+
+		result := models.FbAssignUserResult{
+			AdAccountID: adAccountID,
+		}
+
+		if err != nil {
+			result.Success = false
+			result.Message = err.Error()
+			response.Failed++
+			log.Printf("[FB-AUTH] 授权失败 %s -> %s (role=%s): %v", req.UserID, adAccountID, req.Role, err)
+		} else {
+			result.Success = true
+			result.Message = "授权成功"
+			response.Success++
+			log.Printf("[FB-AUTH] 授权成功 %s -> %s (role=%s)", req.UserID, adAccountID, req.Role)
+		}
+
+		response.Results = append(response.Results, result)
+	}
+
+	return response, nil
+}
+
+// LookupFacebookUsers 查找 Facebook 用户信息（通过 UID）
+func (s *FbService) LookupFacebookUsers(userID uint, tenantID *uint, uids []string) (*models.FbLookupUserResponse, error) {
+	token, err := s.GetToken(userID, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("获取 FB token 失败: %w", err)
+	}
+
+	s.init()
+
+	// 获取当前用户的好友列表
+	friendsResp, friendErr := s.fbGet(
+		fmt.Sprintf("/%s/me/friends", s.graphVer),
+		map[string]string{
+			"access_token": token.AccessToken,
+			"limit":        "5000",
+		},
+	)
+
+	friendSet := make(map[string]bool)
+	if friendErr == nil {
+		if data, ok := friendsResp["data"].([]interface{}); ok {
+			for _, f := range data {
+				if fm, ok := f.(map[string]interface{}); ok {
+					friendSet[getString(fm, "id")] = true
+				}
+			}
+		}
+	}
+
+	// 逐个查找用户信息
+	users := make([]models.FbLookupUserResult, 0, len(uids))
+	for _, uid := range uids {
+		result := models.FbLookupUserResult{
+			UID:      uid,
+			IsFriend: friendSet[uid],
+		}
+
+		// 尝试获取用户名称
+		userResp, err := s.fbGet(
+			fmt.Sprintf("/%s/%s", s.graphVer, uid),
+			map[string]string{
+				"fields":       "name,picture",
+				"access_token": token.AccessToken,
+			},
+		)
+		if err == nil {
+			result.Name = getString(userResp, "name")
+			if pic, ok := userResp["picture"].(map[string]interface{}); ok {
+				if data, ok := pic["data"].(map[string]interface{}); ok {
+					result.Avatar = getString(data, "url")
+				}
+			}
+		}
+
+		users = append(users, result)
+	}
+
+	return &models.FbLookupUserResponse{Users: users}, nil
+}

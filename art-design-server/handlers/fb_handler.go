@@ -535,3 +535,51 @@ func (h *FbHandler) PaymentHistory(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.Success(result))
 }
+
+// AssignUser POST /api/v1/fb/ad-accounts/assign-user — 将用户分配到广告账户
+func (h *FbHandler) AssignUser(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	var req models.FbAssignUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "参数错误: "+err.Error()))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.AssignAdAccountUser(userID, tenantID, &req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(result))
+}
+
+// LookupUsers POST /api/v1/fb/users/lookup — 查找 Facebook 用户信息
+func (h *FbHandler) LookupUsers(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	var req models.FbLookupUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "参数错误: "+err.Error()))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.LookupFacebookUsers(userID, tenantID, req.UIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(result))
+}

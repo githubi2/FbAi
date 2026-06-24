@@ -159,7 +159,7 @@
     </ElDialog>
 
     <!-- 增加授权弹窗 -->
-    <AddAuthDialog v-model="addAuthDialogVisible" />
+    <AddAuthDialog v-model="addAuthDialogVisible" :selected-ad-accounts="selectedRows" />
   </div>
 </template>
 

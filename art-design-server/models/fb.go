@@ -149,3 +149,45 @@ type FbPaymentListResponse struct {
 	Records []FbPaymentRecord `json:"records"`
 	Total   int               `json:"total"`
 }
+
+// ==================== 广告账户授权 ====================
+
+// FbAssignUserRequest 广告账户授权请求
+type FbAssignUserRequest struct {
+	AdAccountIDs []string `json:"adAccountIds" binding:"required,min=1"` // act_xxx 格式的广告账户 ID 列表
+	UserID       string   `json:"userId" binding:"required"`             // Facebook 用户 UID
+	Role         string   `json:"role" binding:"required,oneof=ADMIN ADVERTISER ANALYST"` // 角色
+}
+
+// FbAssignUserResult 单个广告账户的授权结果
+type FbAssignUserResult struct {
+	AdAccountID string `json:"adAccountId"`
+	Success     bool   `json:"success"`
+	Message     string `json:"message"` // 成功或错误信息
+}
+
+// FbAssignUserResponse 广告账户授权响应
+type FbAssignUserResponse struct {
+	Results []FbAssignUserResult `json:"results"`
+	Total   int                  `json:"total"`
+	Success  int                 `json:"success"`
+	Failed   int                 `json:"failed"`
+}
+
+// FbLookupUserRequest 查找 Facebook 用户请求
+type FbLookupUserRequest struct {
+	UIDs []string `json:"uids" binding:"required,min=1"` // Facebook UID 列表
+}
+
+// FbLookupUserResult 单个用户查找结果
+type FbLookupUserResult struct {
+	UID       string `json:"uid"`
+	Name      string `json:"name"`
+	IsFriend  bool   `json:"isFriend"`
+	Avatar    string `json:"avatar"`
+}
+
+// FbLookupUserResponse 查找用户响应
+type FbLookupUserResponse struct {
+	Users []FbLookupUserResult `json:"users"`
+}

@@ -3,7 +3,7 @@
   <ElDialog
     :model-value="modelValue"
     :title="$t('menus.adAccount.addAuthDialogTitle')"
-    width="600px"
+    width="640px"
     destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -28,6 +28,30 @@
 
       <!-- 操作面板 -->
       <div v-show="activeTab === 'action'" class="auth-action-panel">
+        <!-- 已选广告账户 -->
+        <div v-if="selectedAdAccounts.length > 0" class="selected-accounts-info">
+          <div class="info-label">{{ $t('menus.addAuth.selectedAccounts') }}</div>
+          <div class="account-tags">
+            <ElTag
+              v-for="acc in selectedAdAccounts"
+              :key="acc.id"
+              size="small"
+              type="info"
+              class="account-tag"
+            >
+              {{ acc.accountId }} - {{ acc.name || acc.businessName }}
+            </ElTag>
+          </div>
+        </div>
+        <ElAlert
+          v-else
+          :title="$t('menus.addAuth.noAccountsSelected')"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="no-accounts-alert"
+        />
+
         <!-- 权限类型选择 -->
         <div class="auth-select-group">
           <ElSelect v-model="authType" class="auth-select" :placeholder="$t('menus.addAuth.selectAuthType')">
@@ -88,20 +112,51 @@
 
       <!-- 结果面板 -->
       <div v-show="activeTab === 'result'" class="auth-result-panel">
-        <ElEmpty v-if="!detectResult" :description="$t('menus.addAuth.noResultYet')" />
-        <div v-else class="result-content">
+        <!-- 检测结果 -->
+        <template v-if="detectResult">
+          <div class="result-section-title">{{ $t('menus.addAuth.lookupResult') }}</div>
           <ElTable :data="detectResult" border size="small">
-            <ElTableColumn prop="uid" label="UID" min-width="160" />
-            <ElTableColumn prop="status" :label="$t('menus.addAuth.friendStatus')" width="120">
+            <ElTableColumn prop="uid" label="UID" min-width="140" />
+            <ElTableColumn prop="name" :label="$t('menus.addAuth.accountName')" min-width="120">
+              <template #default="{ row }">
+                <div class="user-info">
+                  <img v-if="row.avatar" :src="row.avatar" class="user-avatar" alt="" />
+                  <span>{{ row.name || '-' }}</span>
+                </div>
+              </template>
+            </ElTableColumn>
+            <ElTableColumn prop="isFriend" :label="$t('menus.addAuth.friendStatus')" width="100">
               <template #default="{ row }">
                 <ElTag :type="row.isFriend ? 'success' : 'danger'" size="small">
                   {{ row.isFriend ? $t('menus.addAuth.isFriend') : $t('menus.addAuth.notFriend') }}
                 </ElTag>
               </template>
             </ElTableColumn>
-            <ElTableColumn prop="name" :label="$t('menus.addAuth.accountName')" min-width="140" />
           </ElTable>
-        </div>
+        </template>
+
+        <!-- 授权结果 -->
+        <template v-if="assignResult">
+          <div class="result-section-title">{{ $t('menus.addAuth.assignResult') }}</div>
+          <div class="assign-summary">
+            <ElTag type="success" size="small">{{ $t('menus.addAuth.assignSuccess') }}: {{ assignResult.success }}</ElTag>
+            <ElTag type="danger" size="small">{{ $t('menus.addAuth.assignFailed') }}: {{ assignResult.failed }}</ElTag>
+            <ElTag type="info" size="small">{{ $t('menus.addAuth.assignTotal') }}: {{ assignResult.total }}</ElTag>
+          </div>
+          <ElTable :data="assignResult.results" border size="small">
+            <ElTableColumn prop="adAccountId" label="Ad Account ID" min-width="160" />
+            <ElTableColumn prop="success" :label="$t('menus.addAuth.assignStatus')" width="100">
+              <template #default="{ row }">
+                <ElTag :type="row.success ? 'success' : 'danger'" size="small">
+                  {{ row.success ? $t('menus.addAuth.assignOk') : $t('menus.addAuth.assignFail') }}
+                </ElTag>
+              </template>
+            </ElTableColumn>
+            <ElTableColumn prop="message" :label="$t('menus.addAuth.assignMessage')" min-width="200" />
+          </ElTable>
+        </template>
+
+        <ElEmpty v-if="!detectResult && !assignResult" :description="$t('menus.addAuth.noResultYet')" />
       </div>
     </div>
 
@@ -110,6 +165,7 @@
         type="primary"
         class="confirm-btn"
         :loading="submitting"
+        :disabled="selectedAdAccounts.length === 0"
         @click="handleConfirm"
       >
         <ElIcon class="confirm-icon"><Lock /></ElIcon>
@@ -120,19 +176,30 @@
 </template>
 
 <script setup lang="ts">
-  import { ref } from 'vue'
+  import { ref, computed } from 'vue'
   import { Lock } from '@element-plus/icons-vue'
   import { ElMessage } from 'element-plus'
+  import {
+    fetchLookupFbUsers,
+    fetchAssignAdAccountUser,
+    type FbAdAccountDetail,
+    type FbLookupUserResult,
+    type FbAssignUserResponse
+  } from '@/api/facebook'
 
   defineOptions({ name: 'AddAuthDialog' })
 
-  defineProps<{
+  const props = defineProps<{
     modelValue: boolean
+    selectedAdAccounts?: FbAdAccountDetail[]
   }>()
 
   defineEmits<{
     'update:modelValue': [value: boolean]
   }>()
+
+  // 已选广告账户（从父组件传入）
+  const selectedAdAccounts = computed(() => props.selectedAdAccounts ?? [])
 
   // ==================== 状态 ====================
   const activeTab = ref<'action' | 'result'>('action')
@@ -143,12 +210,36 @@
   const submitting = ref(false)
 
   // 检测结果
-  interface DetectRow {
-    uid: string
-    isFriend: boolean
-    name: string
+  const detectResult = ref<FbLookupUserResult[] | null>(null)
+
+  // 授权结果
+  const assignResult = ref<FbAssignUserResponse | null>(null)
+
+  // authType → FB role 映射
+  const roleMap: Record<string, 'ADMIN' | 'ADVERTISER' | 'ANALYST'> = {
+    authorizeAdmin: 'ADMIN',
+    authorizeAdManager: 'ADVERTISER',
+    authorizeAdAnalyst: 'ANALYST'
   }
-  const detectResult = ref<DetectRow[] | null>(null)
+
+  // 解析输入的 UID 列表
+  const parseUIDs = (): string[] => {
+    return uidInput.value
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        // 从 URL 中提取 UID
+        const urlMatch = line.match(/facebook\.com\/profile\.php\?id=(\d+)/)
+        if (urlMatch) return urlMatch[1]
+        // 如果是纯数字 UID，直接返回
+        if (/^\d+$/.test(line)) return line
+        // 其他 URL 格式，提取路径部分
+        const pathMatch = line.match(/facebook\.com\/([^/?]+)/)
+        if (pathMatch) return pathMatch[1]
+        return line
+      })
+  }
 
   // ==================== 检测好友关系 ====================
   const handleDetect = async () => {
@@ -161,33 +252,9 @@
     activeTab.value = 'result'
 
     try {
-      // 解析输入的UID列表（支持UID和URL混合输入，每行一个）
-      const lines = uidInput.value
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-
-      // 模拟检测结果（实际应调用后端API）
-      await new Promise((r) => setTimeout(r, 1500))
-
-      detectResult.value = lines.map((line) => {
-        // 从URL中提取UID或直接使用UID
-        let uid = line
-        const urlMatch = line.match(/facebook\.com\/profile\.php\?id=(\d+)/)
-        const pathMatch = line.match(/facebook\.com\/([^/?]+)/)
-        if (urlMatch) {
-          uid = urlMatch[1]
-        } else if (pathMatch && !/^\d+$/.test(pathMatch[1])) {
-          uid = pathMatch[1]
-        }
-
-        return {
-          uid,
-          isFriend: Math.random() > 0.3, // 模拟
-          name: '' // 实际由后端返回
-        }
-      })
-
+      const uids = parseUIDs()
+      const result = await fetchLookupFbUsers(uids)
+      detectResult.value = result.users
       ElMessage.success('检测完成')
     } catch {
       ElMessage.error('检测失败，请重试')
@@ -199,18 +266,53 @@
 
   // ==================== 确认提交 ====================
   const handleConfirm = async () => {
+    if (selectedAdAccounts.value.length === 0) {
+      ElMessage.warning('请先在表格中选择广告账户')
+      return
+    }
     if (!uidInput.value.trim()) {
       ElMessage.warning('请先输入Facebook账号UID或主页地址')
       return
     }
 
     submitting.value = true
+    activeTab.value = 'result'
+
     try {
-      // TODO: 调用后端API执行授权操作
-      await new Promise((r) => setTimeout(r, 1000))
-      ElMessage.success('授权操作已提交')
+      const uids = parseUIDs()
+      const role = roleMap[authType.value] || 'ADMIN'
+
+      // 对每个 UID 执行授权
+      let allResults: FbAssignUserResponse | null = null
+      for (const uid of uids) {
+        const result = await fetchAssignAdAccountUser({
+          adAccountIds: selectedAdAccounts.value.map((acc) => acc.id),
+          userId: uid,
+          role
+        })
+
+        if (!allResults) {
+          allResults = result
+        } else {
+          allResults.results.push(...result.results)
+          allResults.success += result.success
+          allResults.failed += result.failed
+          allResults.total += result.total
+        }
+      }
+
+      assignResult.value = allResults
+
+      if (allResults && allResults.failed === 0) {
+        ElMessage.success(`授权成功！共 ${allResults.success} 个账户`)
+      } else if (allResults && allResults.success > 0) {
+        ElMessage.warning(`部分授权成功：${allResults.success} 成功，${allResults.failed} 失败`)
+      } else {
+        ElMessage.error('授权失败，请检查权限或重试')
+      }
     } catch {
       ElMessage.error('授权失败，请重试')
+      assignResult.value = null
     } finally {
       submitting.value = false
     }
@@ -243,6 +345,34 @@
           border-bottom-color: var(--el-color-primary);
         }
       }
+    }
+
+    /* 已选广告账户 */
+    .selected-accounts-info {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--el-fill-color-lighter);
+      border-radius: 6px;
+
+      .info-label {
+        font-size: 13px;
+        color: var(--el-text-color-secondary);
+        margin-bottom: 8px;
+      }
+
+      .account-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+
+        .account-tag {
+          font-size: 12px;
+        }
+      }
+    }
+
+    .no-accounts-alert {
+      margin-bottom: 16px;
     }
 
     /* 权限类型选择 */
@@ -340,6 +470,34 @@
     /* 结果面板 */
     .auth-result-panel {
       min-height: 200px;
+
+      .result-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--el-text-color-primary);
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .user-avatar {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+      }
+
+      .assign-summary {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
     }
 
     /* 确认按钮 */

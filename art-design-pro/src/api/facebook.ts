@@ -199,3 +199,58 @@ export function fetchFbPaymentHistory(adAccountId: string) {
     showErrorMessage: false
   })
 }
+
+// ==================== 广告账户授权 ====================
+
+/** 授权请求参数 */
+export interface FbAssignUserParams {
+  adAccountIds: string[]
+  userId: string
+  role: 'ADMIN' | 'ADVERTISER' | 'ANALYST'
+}
+
+/** 单个广告账户授权结果 */
+export interface FbAssignUserResult {
+  adAccountId: string
+  success: boolean
+  message: string
+}
+
+/** 授权响应 */
+export interface FbAssignUserResponse {
+  results: FbAssignUserResult[]
+  total: number
+  success: number
+  failed: number
+}
+
+/** 将用户分配到广告账户 */
+export function fetchAssignAdAccountUser(params: FbAssignUserParams) {
+  return request.post<FbAssignUserResponse>({
+    url: '/api/v1/fb/ad-accounts/assign-user',
+    data: params,
+    showErrorMessage: true
+  })
+}
+
+/** 查找用户结果 */
+export interface FbLookupUserResult {
+  uid: string
+  name: string
+  isFriend: boolean
+  avatar: string
+}
+
+/** 查找用户响应 */
+export interface FbLookupUserResponse {
+  users: FbLookupUserResult[]
+}
+
+/** 查找 Facebook 用户信息 */
+export function fetchLookupFbUsers(uids: string[]) {
+  return request.post<FbLookupUserResponse>({
+    url: '/api/v1/fb/users/lookup',
+    data: { uids },
+    showErrorMessage: true
+  })
+}
