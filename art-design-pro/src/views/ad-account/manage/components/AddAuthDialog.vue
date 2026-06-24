@@ -67,17 +67,15 @@
 
         <!-- 步骤1：输入目标账号 -->
         <div class="auth-step">
-          <div class="auth-step-indicator">
+          <div class="auth-step-head">
             <span class="auth-step-num">1</span>
             <div class="auth-step-line"></div>
           </div>
+          <div class="auth-step-label">
+            <span class="required-star">*</span>
+            {{ $t('menus.addAuth.step1Label') }}
+          </div>
           <div class="auth-step-body">
-            <div class="auth-step-head">
-              <span class="auth-step-label">
-                <span class="required-star">*</span>
-                {{ $t('menus.addAuth.step1Label') }}
-              </span>
-            </div>
             <ElInput
               v-model="uidInput"
               type="textarea"
@@ -90,14 +88,12 @@
 
         <!-- 步骤2：检测好友关系 -->
         <div class="auth-step">
-          <div class="auth-step-indicator">
+          <div class="auth-step-head">
             <span class="auth-step-num">2</span>
             <div class="auth-step-line"></div>
           </div>
+          <div class="auth-step-label">{{ $t('menus.addAuth.step2Label') }}</div>
           <div class="auth-step-body">
-            <div class="auth-step-head">
-              <span class="auth-step-label">{{ $t('menus.addAuth.step2Label') }}</span>
-            </div>
             <ElButton type="success" class="detect-btn" :loading="detecting" @click="handleDetect">
               {{ $t('menus.addAuth.step2Button') }}
             </ElButton>
@@ -106,14 +102,12 @@
 
         <!-- 步骤3：系统默认执行时间间隔 -->
         <div class="auth-step">
-          <div class="auth-step-indicator">
+          <div class="auth-step-head">
             <span class="auth-step-num">3</span>
           </div>
-          <div class="auth-step-head">
-            <ElCheckbox v-model="useDefaultInterval" class="auth-step-label">
-              {{ $t('menus.addAuth.step3Label') }}
-            </ElCheckbox>
-          </div>
+          <ElCheckbox v-model="useDefaultInterval" class="auth-step-label">
+            {{ $t('menus.addAuth.step3Label') }}
+          </ElCheckbox>
         </div>
       </div>
 
@@ -406,25 +400,32 @@
 
     /* 步骤 */
     .auth-step {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 28px;
+      position: relative;
+      padding-left: 36px;
+      padding-bottom: 28px;
+
+      &:last-child {
+        padding-bottom: 0;
+      }
     }
 
-    .auth-step:last-child {
-      margin-bottom: 0;
-    }
-
-    .auth-step-indicator {
+    .auth-step-head {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      flex-shrink: 0;
-      width: 24px;
-      height: 52px;
+      gap: 12px;
+      min-height: 24px;
+      margin-bottom: 10px;
+
+      :deep(.el-checkbox) {
+        height: 24px;
+        line-height: 24px;
+      }
     }
 
     .auth-step-num {
+      position: absolute;
+      left: 0;
+      top: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -440,33 +441,16 @@
     }
 
     .auth-step-line {
-      flex: 1;
+      position: absolute;
+      left: 11px;
+      top: 28px;
+      bottom: -28px;
       width: 2px;
-      min-height: 12px;
       background-color: var(--el-border-color);
-      margin-top: 4px;
     }
 
     .auth-step:last-child .auth-step-line {
       display: none;
-    }
-
-    .auth-step-body {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .auth-step-head {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-height: 24px;
-      margin-bottom: 10px;
-
-      :deep(.el-checkbox) {
-        height: 24px;
-        line-height: 24px;
-      }
     }
 
     .auth-step-label {
