@@ -42,10 +42,8 @@
 
         <!-- 步骤1：输入目标账号 -->
         <div class="auth-step">
-          <div class="auth-step-head">
-            <span class="auth-step-num">1</span>
-            <div class="auth-step-line"></div>
-          </div>
+          <span class="auth-step-num">1</span>
+          <div class="auth-step-line"></div>
           <div class="auth-step-label">
             <span class="required-star">*</span>
             {{ $t('menus.deleteAuth.step1Label') }}
@@ -63,10 +61,8 @@
 
         <!-- 步骤2：删除当前FB账号权限 -->
         <div class="auth-step">
-          <div class="auth-step-head">
-            <span class="auth-step-num">2</span>
-            <div class="auth-step-line"></div>
-          </div>
+          <span class="auth-step-num">2</span>
+          <div class="auth-step-line"></div>
           <ElCheckbox v-model="deleteCurrentAccount" class="auth-step-label">
             {{ $t('menus.deleteAuth.step2Label') }}
           </ElCheckbox>
@@ -74,9 +70,7 @@
 
         <!-- 步骤3：系统默认执行时间间隔 -->
         <div class="auth-step">
-          <div class="auth-step-head">
-            <span class="auth-step-num">3</span>
-          </div>
+          <span class="auth-step-num">3</span>
           <ElCheckbox v-model="useDefaultInterval" class="auth-step-label">
             {{ $t('menus.addAuth.step3Label') }}
           </ElCheckbox>
@@ -287,19 +281,6 @@
       }
     }
 
-    .auth-step-head {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-height: 24px;
-      margin-bottom: 10px;
-
-      :deep(.el-checkbox) {
-        height: 24px;
-        line-height: 24px;
-      }
-    }
-
     .auth-step-num {
       position: absolute;
       left: 0;
@@ -315,7 +296,6 @@
       font-size: 13px;
       font-weight: 600;
       line-height: 1;
-      flex-shrink: 0;
     }
 
     .auth-step-line {
