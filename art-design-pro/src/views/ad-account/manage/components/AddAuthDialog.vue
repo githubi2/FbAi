@@ -390,13 +390,13 @@
       padding-left: 36px;
       margin-bottom: 20px;
 
-      /* 连接线 */
+      /* 连接线：圆圈中心 36+12=48px, 线宽2px → left:47px */
       &::before {
         content: '';
         position: absolute;
-        left: 11px;
-        top: 28px;
-        bottom: -20px;
+        left: 47px;
+        top: 26px;
+        bottom: 2px;
         width: 2px;
         background-color: var(--el-border-color);
       }
@@ -412,7 +412,7 @@
 
     .auth-step-head {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: 12px;
       min-height: 24px;
       margin-bottom: 10px;
@@ -447,6 +447,7 @@
     }
 
     .auth-step-body {
+      padding-left: 36px;
       min-width: 0;
     }
 
