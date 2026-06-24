@@ -71,6 +71,7 @@
   const menuNameMap = ref<Map<number, string>>(new Map())
 
   onMounted(async () => {
+    // 加载菜单映射
     try {
       const menus = await fetchGetAllMenus()
       const map = new Map<number, string>()
@@ -158,7 +159,9 @@
             const ids: number[] = row.menuIds || []
             if (!ids.length) return h('span', { class: 'text-gray-400 text-xs' }, '暂无权限')
             const map = menuNameMap.value
-            return h('div', { class: 'flex flex-wrap gap-1' },
+            return h(
+              'div',
+              { class: 'flex flex-wrap gap-1' },
               ids.map((id: number) => {
                 const name = map.get(id) || `#${id}`
                 return h(ElTag, { size: 'small' }, () => name)
@@ -180,7 +183,7 @@
                 plain: true,
                 disabled: true
               },
-              () => isEnabled ? '启用' : '禁用'
+              () => (isEnabled ? '启用' : '禁用')
             )
           }
         },

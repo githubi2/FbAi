@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/githubi2/FbAi/art-design-server/crypto"
@@ -116,60 +115,15 @@ func (s *TenantService) Create(req models.CreateTenantRequest) (*models.Tenant, 
 		return nil, nil, errors.New("创建租户失败: " + err.Error())
 	}
 
-	// 2. 创建租户管理员角色（role_code 包含租户ID避免冲突）
-	// 分配菜单: Dashboard(1), Console(3), TenantSystem(8), TenantUser(9), TenantRole(10), TenantMenu(11)
-	adminRoleCode := fmt.Sprintf("T%d_R_ADMIN", tenantID)
-	adminMenuIDs := "{1,3,8,9,10,11}"
+	// 2. 获取共享租户管理员角色
 	var adminRoleID uint
 	err = tx.QueryRow(ctx,
-		`INSERT INTO roles (role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		"租户管理员", adminRoleCode, "租户管理员角色", adminMenuIDs, 1, tenantID, now, now,
-	).Scan(&adminRoleID)
+		`SELECT id FROM roles WHERE role_code = 'R_TENANT_ADMIN' AND tenant_id IS NULL`).Scan(&adminRoleID)
 	if err != nil {
-		return nil, nil, errors.New("创建租户管理员角色失败: " + err.Error())
+		return nil, nil, errors.New("共享角色 R_TENANT_ADMIN 不存在，请先执行数据库迁移")
 	}
 
-	// 3. 创建普通用户角色
-	// 分配菜单: Dashboard(1), Console(3)
-	userRoleCode := fmt.Sprintf("T%d_R_USER", tenantID)
-	userMenuIDs := "{1,3}"
-	var userRoleID uint
-	err = tx.QueryRow(ctx,
-		`INSERT INTO roles (role_name, role_code, description, menu_ids, status, tenant_id, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		"普通用户", userRoleCode, "普通用户角色", userMenuIDs, 1, tenantID, now, now,
-	).Scan(&userRoleID)
-	if err != nil {
-		return nil, nil, errors.New("创建普通用户角色失败: " + err.Error())
-	}
-
-	// 4. 为租户管理员角色分配权限
-	_, err = tx.Exec(ctx,
-		`INSERT INTO role_permissions (role_id, permission_id)
-		 SELECT $1, id FROM permissions WHERE code IN (
-		 	'system:user:list','system:user:create','system:user:edit','system:user:delete',
-		 	'system:role:list','system:role:create','system:role:edit','system:role:delete',
-		 	'system:menu:list',
-		 	'dashboard:view','dashboard:export'
-		 )`,
-		adminRoleID,
-	)
-	if err != nil {
-		return nil, nil, errors.New("分配租户管理员权限失败: " + err.Error())
-	}
-
-	// 5. 为普通用户角色分配权限
-	_, err = tx.Exec(ctx,
-		`INSERT INTO role_permissions (role_id, permission_id)
-		 SELECT $1, id FROM permissions WHERE code IN ('dashboard:view')`,
-		userRoleID,
-	)
-	if err != nil {
-		return nil, nil, errors.New("分配普通用户权限失败: " + err.Error())
-	}
-
-	// 6. 创建租户管理员账号
+	// 3. 创建租户管理员账号
 	hashedPassword, hashErr := crypto.HashPassword(req.AdminPassword)
 	if hashErr != nil {
 		return nil, nil, errors.New("密码加密失败")

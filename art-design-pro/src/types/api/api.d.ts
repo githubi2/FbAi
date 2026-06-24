@@ -119,6 +119,7 @@ declare namespace Api {
       enabled: boolean
       menuIds?: number[]
       createTime: string
+      tenantId?: number | null
     }
 
     /** 角色搜索参数 */
