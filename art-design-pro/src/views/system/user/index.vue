@@ -116,7 +116,7 @@
           label: '角色',
           minWidth: 100,
           formatter: (row) => {
-            const roleName = row.roleName || (row.userRoles?.[0]) || '—'
+            const roleName = row.roleName || row.userRoles?.[0] || '—'
             return h(ElTag, { type: 'primary' }, () => roleName)
           }
         },
@@ -125,7 +125,8 @@
           label: '状态',
           minWidth: 90,
           formatter: (row) => {
-            const statusNum = typeof row.status === 'number' ? row.status : parseInt(row.status) || 0
+            const statusNum =
+              typeof row.status === 'number' ? row.status : parseInt(row.status) || 0
             const statusConfig = getUserStatusConfig(statusNum)
             return h(ElTag, { type: statusConfig.type }, () => statusConfig.text)
           }
@@ -175,7 +176,7 @@
             // 后端返回字段映射
             userName: item.userName || item.username || '',
             nickName: item.nickName || '',
-            roleName: item.roleName || (item.userRoles?.[0]) || '',
+            roleName: item.roleName || item.userRoles?.[0] || '',
             roleId: item.roleId || item.role_id,
             status: Number(item.status),
             createTime: item.createTime || '',

@@ -9,7 +9,7 @@
 ### Go 后端 (art-design-server)
 
 | 文件 | 变更 | 原因 |
-|------|------|------|
+| --- | --- | --- |
 | `models/role.go` | 重写：字段对齐 DB schema (`roleName`, `roleCode`, `description`, `menuIds`, `status`) | 匹配 PostgreSQL `roles` 表 |
 | `models/menu.go` | 重写：字段对齐 DB schema (`title`, `name`, `path`, `sortOrder`, `menuType`, `hidden`) | 匹配 PostgreSQL `menus` 表 |
 | `models/user.go` | 更新 JSON tag：`userEmail`, `userPhone`, `createTime`, `updateTime` | 匹配前端期望的字段名 |
@@ -24,15 +24,15 @@
 
 ### 新增文件
 
-| 文件 | 用途 |
-|------|------|
+| 文件                 | 用途                                                 |
+| -------------------- | ---------------------------------------------------- |
 | `crypto/password.go` | 密码哈希/验证工具（bcrypt），独立包避免 import cycle |
-| `seed.sql` | 数据库种子脚本（菜单 + 角色权限 + 演示用户） |
+| `seed.sql`           | 数据库种子脚本（菜单 + 角色权限 + 演示用户）         |
 
 ### 前端 (art-design-pro)
 
 | 文件 | 变更 | 原因 |
-|------|------|------|
+| --- | --- | --- |
 | `src/api/system-manage.ts` | 添加完整的 CRUD 函数：`fetchCreateUser`, `fetchUpdateUser`, `fetchDeleteUser`, `fetchCreateRole`, `fetchUpdateRole`, `fetchDeleteRole`, `fetchCreateMenu`, `fetchUpdateMenu`, `fetchDeleteMenu` | 支撑页面的增删改查操作 |
 | `src/types/api/api.d.ts` | 添加 `CreateUserParams`, `UpdateUserParams`, `CreateRoleParams`, `UpdateRoleParams` 类型 | 类型约束 |
 | `src/views/system/user/index.vue` | 数据转换器适配后端字段；CRUD 操作连接真实 API | 消除 mock data 依赖 |
@@ -44,22 +44,27 @@
 ## 设计决策
 
 ### 1. 密码哈希处理
+
 - 从 `middleware` 包提取到独立的 `crypto` 包，解决 `services → middleware → services` 的 import cycle
 - 用户创建时自动 bcrypt 哈希密码（12 rounds）
 - 演示用户密码统一为 `123456`
 
 ### 2. 字段命名对齐
+
 - 后端 JSON 输出直接匹配前端期望字段名（`userEmail`, `userPhone`, `createTime`, `updateTime`）
 - 数据库列名保持 snake_case（PostgreSQL 惯例），通过 GORM `column` tag 映射
 - 前端数据转换器处理 `id→roleId`, `status(int)→enabled(bool)` 等格式转换
 
 ### 3. 向后兼容路由
+
 保留旧版 API 路径避免破坏现有调用：
-- `/api/user/list` → `/api/v1/users` 
+
+- `/api/user/list` → `/api/v1/users`
 - `/api/role/list` → `/api/v1/roles`
 - `/api/v3/system/menus/simple` → `/api/v1/menus/tree`
 
 ### 4. 种子数据
+
 - **用户**: admin + 5 个演示用户（alex, sophia, liam, olivia, emma）
 - **角色**: 超级管理员(R_SUPER)、管理员(R_ADMIN)、普通用户(R_USER)
 - **菜单**: 6 个菜单项（Dashboard → Console, System → User/Role/Menu）
@@ -67,30 +72,30 @@
 
 ## API 端点清单
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/auth/login` | 登录 |
-| GET | `/api/user/info` | 用户信息（兼容前端） |
-| GET | `/api/user/list` | 用户列表（兼容旧路径） |
-| GET | `/api/role/list` | 角色列表（兼容旧路径） |
-| GET | `/api/v3/system/menus/simple` | 菜单树（兼容旧路径） |
-| GET | `/api/v1/users` | 用户列表（分页） |
-| GET | `/api/v1/users/:id` | 用户详情 |
-| POST | `/api/v1/users` | 创建用户 |
-| PUT | `/api/v1/users/:id` | 更新用户 |
-| DELETE | `/api/v1/users/:id` | 删除用户 |
-| GET | `/api/v1/roles` | 角色列表 |
-| GET | `/api/v1/roles/:id` | 角色详情 |
-| GET | `/api/v1/roles/:id/menus` | 角色菜单权限 |
-| POST | `/api/v1/roles` | 创建角色 |
-| PUT | `/api/v1/roles/:id` | 更新角色 |
-| DELETE | `/api/v1/roles/:id` | 删除角色 |
-| GET | `/api/v1/menus` | 菜单列表（平铺） |
-| GET | `/api/v1/menus/tree` | 菜单树 |
-| GET | `/api/v1/menus/:id` | 菜单详情 |
-| POST | `/api/v1/menus` | 创建菜单 |
-| PUT | `/api/v1/menus/:id` | 更新菜单 |
-| DELETE | `/api/v1/menus/:id` | 删除菜单 |
+| 方法   | 路径                          | 说明                   |
+| ------ | ----------------------------- | ---------------------- |
+| POST   | `/api/v1/auth/login`          | 登录                   |
+| GET    | `/api/user/info`              | 用户信息（兼容前端）   |
+| GET    | `/api/user/list`              | 用户列表（兼容旧路径） |
+| GET    | `/api/role/list`              | 角色列表（兼容旧路径） |
+| GET    | `/api/v3/system/menus/simple` | 菜单树（兼容旧路径）   |
+| GET    | `/api/v1/users`               | 用户列表（分页）       |
+| GET    | `/api/v1/users/:id`           | 用户详情               |
+| POST   | `/api/v1/users`               | 创建用户               |
+| PUT    | `/api/v1/users/:id`           | 更新用户               |
+| DELETE | `/api/v1/users/:id`           | 删除用户               |
+| GET    | `/api/v1/roles`               | 角色列表               |
+| GET    | `/api/v1/roles/:id`           | 角色详情               |
+| GET    | `/api/v1/roles/:id/menus`     | 角色菜单权限           |
+| POST   | `/api/v1/roles`               | 创建角色               |
+| PUT    | `/api/v1/roles/:id`           | 更新角色               |
+| DELETE | `/api/v1/roles/:id`           | 删除角色               |
+| GET    | `/api/v1/menus`               | 菜单列表（平铺）       |
+| GET    | `/api/v1/menus/tree`          | 菜单树                 |
+| GET    | `/api/v1/menus/:id`           | 菜单详情               |
+| POST   | `/api/v1/menus`               | 创建菜单               |
+| PUT    | `/api/v1/menus/:id`           | 更新菜单               |
+| DELETE | `/api/v1/menus/:id`           | 删除菜单               |
 
 ## 验证结果
 

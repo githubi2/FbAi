@@ -403,7 +403,27 @@
       "resetLimit": "重置限额",
       "hideAdmin": "隐藏管理员",
       "accountPush": "账号推送",
-      "selectRowsFirst": "请先选择广告账户"
+      "selectRowsFirst": "请先选择广告账户",
+      "addAuthDialogTitle": "增加广告账号权限",
+      "addAuthTabAction": "操作",
+      "addAuthTabResult": "结果"
+    },
+    "addAuth": {
+      "selectAuthType": "选择权限类型",
+      "authorizeAdmin": "授权管理员",
+      "authorizeAdManager": "授权广告管理员",
+      "authorizeAdAnalyst": "授权广告分析员",
+      "step1Label": "输入Facebook社交账号的UID或主页地址(先添加好友)",
+      "step1Placeholder": "请输入Facebook UID或主页地址，每行一个\n例如：\n100093137591614\nhttps://www.facebook.com/username\nhttps://www.facebook.com/profile.php?id=61558701983846",
+      "step2Label": "检测好友关系",
+      "step2Button": "开始检测",
+      "step3Label": "系统默认执行时间间隔",
+      "confirm": "确定",
+      "noResultYet": "暂无检测结果，请先执行检测",
+      "friendStatus": "好友状态",
+      "isFriend": "已是好友",
+      "notFriend": "未添加",
+      "accountName": "账号名称"
     }
   },
   "table": {

@@ -157,11 +157,15 @@
         </div>
       </template>
     </ElDialog>
+
+    <!-- 增加授权弹窗 -->
+    <AddAuthDialog v-model="addAuthDialogVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
   import { h, ref, reactive } from 'vue'
+  import AddAuthDialog from './components/AddAuthDialog.vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import {
@@ -194,9 +198,19 @@
       ElMessage.warning(t('menus.adAccount.selectRowsFirst'))
       return
     }
-    // TODO: 实现各批量操作功能
-    console.log('Batch action:', action, selectedRows.value)
+    // 实现各批量操作功能
+    switch (action) {
+      case 'addAuth':
+        addAuthDialogVisible.value = true
+        break
+      default:
+        console.log('Batch action:', action, selectedRows.value)
+        break
+    }
   }
+
+  // ==================== 增加授权弹窗 ====================
+  const addAuthDialogVisible = ref(false)
 
   // ==================== 搜索筛选 ====================
   const searchForm = reactive({

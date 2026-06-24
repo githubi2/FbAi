@@ -2,11 +2,7 @@
 <template>
   <div class="art-full-height">
     <ElCard class="art-table-card">
-      <ArtTableHeader
-        v-model:columns="columnChecks"
-        :loading="loading"
-        @refresh="refreshData"
-      >
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
           <ElSpace wrap>
             <ElButton @click="showDialog('add')" v-ripple>新增角色</ElButton>

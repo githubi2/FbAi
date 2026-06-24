@@ -168,9 +168,7 @@
           nameToIdMap.value = name2Id
 
           // 将后端的 menuId 转换为前端路由的 name
-          const checkedNames: string[] = roleMenus
-            .map((id) => id2Name.get(id)!)
-            .filter(Boolean)
+          const checkedNames: string[] = roleMenus.map((id) => id2Name.get(id)!).filter(Boolean)
 
           await nextTick()
           treeRef.value?.setCheckedKeys(checkedNames)

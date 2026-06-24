@@ -41,6 +41,7 @@
         :type="dialogType"
         :editData="editData"
         :lockType="lockMenuType"
+        :menuTree="tableData"
         @submit="handleSubmit"
       />
     </ElCard>
@@ -68,7 +69,7 @@
   const tableRef = ref()
 
   const dialogVisible = ref(false)
-  const dialogType = ref<'menu' | 'button'>('menu')
+  const dialogType = ref<'menu' | 'button' | 'directory'>('menu')
   const editData = ref<AppRouteRecord | any>(null)
   const lockMenuType = ref(false)
 
@@ -110,6 +111,8 @@
         title: node.title || '',
         icon: node.icon || '',
         isHide: node.hidden || false,
+        menuType: node.menuType || 'menu',
+        parentId: node.parentId || 0,
         authList: []
       },
       children: node.children ? menuTreeToAppRoute(node.children) : []
@@ -135,6 +138,10 @@
   const getMenuTypeTag = (
     row: AppRouteRecord
   ): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
+    const mt = row.meta?.menuType
+    if (mt === 'button') return 'danger'
+    if (mt === 'directory') return 'info'
+    if (mt === 'menu') return 'primary'
     if (row.meta?.isAuthButton) return 'danger'
     if (row.children?.length) return 'info'
     if (row.meta?.link && row.meta?.isIframe) return 'success'
@@ -144,6 +151,10 @@
   }
 
   const getMenuTypeText = (row: AppRouteRecord): string => {
+    const mt = row.meta?.menuType
+    if (mt === 'directory') return '目录'
+    if (mt === 'menu') return '菜单'
+    if (mt === 'button') return '按钮'
     if (row.meta?.isAuthButton) return '按钮'
     if (row.children?.length) return '目录'
     if (row.meta?.link && row.meta?.isIframe) return '内嵌'
@@ -326,21 +337,22 @@
   const handleAddMenu = (): void => {
     dialogType.value = 'menu'
     editData.value = null
-    lockMenuType.value = true
-    dialogVisible.value = true
-  }
-
-  const handleAddAuth = (): void => {
-    dialogType.value = 'menu'
-    editData.value = null
     lockMenuType.value = false
     dialogVisible.value = true
   }
 
-  const handleEditMenu = (row: AppRouteRecord): void => {
-    dialogType.value = 'menu'
-    editData.value = row
+  const handleAddAuth = (): void => {
+    dialogType.value = 'button'
+    editData.value = null
     lockMenuType.value = true
+    dialogVisible.value = true
+  }
+
+  const handleEditMenu = (row: AppRouteRecord): void => {
+    const mt = row.meta?.menuType || 'menu'
+    dialogType.value = mt === 'directory' || mt === 'menu' || mt === 'button' ? mt : 'menu'
+    editData.value = row
+    lockMenuType.value = false
     dialogVisible.value = true
   }
 
@@ -355,12 +367,14 @@
   }
 
   interface MenuFormData {
+    title: string
     name: string
     path: string
     component?: string
     icon?: string
     parentId?: number
     sort?: number
+    menuType?: string
     [key: string]: any
   }
 
@@ -368,26 +382,27 @@
     try {
       if (editData.value?.id) {
         await fetchUpdateMenu(editData.value.id, {
-          title: formData.name,
+          title: formData.title,
           name: formData.name,
           path: formData.path,
           component: formData.component || '',
           icon: formData.icon || '',
           sort: formData.sort || 0,
           parentId: formData.parentId || 0,
+          menuType: formData.menuType || editData.value?.meta?.menuType || 'menu',
           status: 1
         })
         ElMessage.success('更新成功')
       } else {
         await fetchCreateMenu({
-          title: formData.name,
+          title: formData.title,
           name: formData.name,
           path: formData.path,
           component: formData.component || '',
           icon: formData.icon || '',
           sort: formData.sort || 0,
           parentId: formData.parentId || 0,
-          menuType: 'menu',
+          menuType: formData.menuType || 'menu',
           status: 1
         })
         ElMessage.success('添加成功')

@@ -71,7 +71,12 @@
     ],
     roleCode: [
       { required: true, message: '请输入角色编码', trigger: 'blur' },
-      { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+      { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' },
+      {
+        pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/,
+        message: '必须以字母开头，只允许字母/数字/下划线',
+        trigger: 'blur'
+      }
     ],
     description: [{ required: true, message: '请输入角色描述', trigger: 'blur' }]
   })

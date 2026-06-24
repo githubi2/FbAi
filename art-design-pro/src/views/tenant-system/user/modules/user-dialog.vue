@@ -136,7 +136,12 @@
   const rules: FormRules = {
     userName: [
       { required: true, message: '请输入用户名', trigger: 'blur' },
-      { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
+      { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' },
+      {
+        pattern: /^[a-zA-Z\u4e00-\u9fa5][a-zA-Z0-9\u4e00-\u9fa5_-]*$/,
+        message: '只允许字母/中文/数字/下划线/连字符，不能以特殊字符开头',
+        trigger: 'blur'
+      }
     ],
     password: [
       { required: true, message: '请输入密码', trigger: 'blur' },
@@ -187,8 +192,8 @@
       password: '',
       newPassword: '',
       confirmPassword: '',
-      roleId: isEdit && row ? (row.roleId || row.role_id) : undefined,
-      status: isEdit && row ? (row.status === 1 || row.status === '1' || row.status === true) : true
+      roleId: isEdit && row ? row.roleId || row.role_id : undefined,
+      status: isEdit && row ? row.status === 1 || row.status === '1' || row.status === true : true
     })
     showPassword.value = false
     showNewPassword.value = false

@@ -25,7 +25,13 @@
       </ElFormItem>
 
       <ElFormItem label="备注" prop="description">
-        <ElInput v-model="form.description" type="textarea" :rows="3" placeholder="请输入备注信息" maxlength="256" />
+        <ElInput
+          v-model="form.description"
+          type="textarea"
+          :rows="3"
+          placeholder="请输入备注信息"
+          maxlength="256"
+        />
       </ElFormItem>
 
       <!-- 创建租户时需填写管理员账号 -->
@@ -37,7 +43,13 @@
         </ElFormItem>
 
         <ElFormItem label="管理员密码" prop="adminPassword">
-          <ElInput v-model="form.adminPassword" type="password" placeholder="至少6位密码" maxlength="32" show-password />
+          <ElInput
+            v-model="form.adminPassword"
+            type="password"
+            placeholder="至少6位密码"
+            maxlength="32"
+            show-password
+          />
         </ElFormItem>
 
         <ElFormItem label="管理员昵称" prop="adminNickName">
@@ -54,80 +66,107 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import { DialogType } from '@/types'
+  import { ref, reactive, watch } from 'vue'
+  import type { FormInstance, FormRules } from 'element-plus'
+  import { DialogType } from '@/types'
 
-interface Props {
-  visible: boolean
-  type: DialogType
-  tenantData?: Partial<Api.Tenant.TenantListItem>
-}
-
-interface Emits {
-  (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: any): void
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  tenantData: () => ({})
-})
-const emit = defineEmits<Emits>()
-
-const formRef = ref<FormInstance>()
-const submitting = ref(false)
-
-const form = reactive<Record<string, any>>({
-  name: '',
-  code: '',
-  contactPhone: '',
-  description: '',
-  status: 1,
-  adminUserName: '',
-  adminPassword: '',
-  adminNickName: ''
-})
-
-const rules: FormRules = {
-  name: [{ required: true, message: '请输入租户名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入租户编码', trigger: 'blur' }],
-  adminUserName: [{ required: true, message: '请输入管理员用户名', trigger: 'blur' }],
-  adminPassword: [
-    { required: true, message: '请输入管理员密码', trigger: 'blur' },
-    { min: 6, message: '密码至少6位', trigger: 'blur' }
-  ]
-}
-
-watch(() => props.visible, (val) => {
-  if (val && props.type === 'edit' && props.tenantData) {
-    form.name = props.tenantData.name || ''
-    form.contactPhone = props.tenantData.contactPhone || ''
-    form.description = props.tenantData.description || ''
-    form.status = props.tenantData.status ?? 1
-  } else if (val && props.type === 'add') {
-    form.name = ''
-    form.code = ''
-    form.contactPhone = ''
-    form.description = ''
-    form.status = 1
-    form.adminUserName = ''
-    form.adminPassword = ''
-    form.adminNickName = ''
+  interface Props {
+    visible: boolean
+    type: DialogType
+    tenantData?: Partial<Api.Tenant.TenantListItem>
   }
-})
 
-async function handleSubmit() {
-  if (!formRef.value) return
-  try {
-    await formRef.value.validate()
-  } catch {
-    return
+  interface Emits {
+    (e: 'update:visible', val: boolean): void
+    (e: 'submit', data: any): void
   }
-  submitting.value = true
-  try {
-    emit('submit', { ...form })
-  } finally {
-    submitting.value = false
+
+  const props = withDefaults(defineProps<Props>(), {
+    tenantData: () => ({})
+  })
+  const emit = defineEmits<Emits>()
+
+  const formRef = ref<FormInstance>()
+  const submitting = ref(false)
+
+  const form = reactive<Record<string, any>>({
+    name: '',
+    code: '',
+    contactPhone: '',
+    description: '',
+    status: 1,
+    adminUserName: '',
+    adminPassword: '',
+    adminNickName: ''
+  })
+
+  const rules: FormRules = {
+    name: [
+      { required: true, message: '请输入租户名称', trigger: 'blur' },
+      { min: 2, max: 128, message: '长度在 2 到 128 个字符', trigger: 'blur' }
+    ],
+    code: [
+      { required: true, message: '请输入租户编码', trigger: 'blur' },
+      { min: 2, max: 64, message: '长度在 2 到 64 个字符', trigger: 'blur' },
+      {
+        pattern: /^[a-z][a-z0-9_]*$/,
+        message: '必须小写字母开头，只允许小写字母/数字/下划线',
+        trigger: 'blur'
+      }
+    ],
+    contactPhone: [
+      { pattern: /^[\d\-+() ]{0,20}$/, message: '请输入有效的电话号码', trigger: 'blur' }
+    ],
+    contactEmail: [{ type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }],
+    adminUserName: [
+      { required: true, message: '请输入管理员用户名', trigger: 'blur' },
+      { min: 2, max: 64, message: '长度在 2 到 64 个字符', trigger: 'blur' },
+      {
+        pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/,
+        message: '必须以字母开头，只允许字母/数字/下划线',
+        trigger: 'blur'
+      }
+    ],
+    adminPassword: [
+      { required: true, message: '请输入管理员密码', trigger: 'blur' },
+      { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+    ],
+    adminNickName: [{ max: 64, message: '长度不能超过 64 个字符', trigger: 'blur' }]
   }
-}
+
+  watch(
+    () => props.visible,
+    (val) => {
+      if (val && props.type === 'edit' && props.tenantData) {
+        form.name = props.tenantData.name || ''
+        form.contactPhone = props.tenantData.contactPhone || ''
+        form.description = props.tenantData.description || ''
+        form.status = props.tenantData.status ?? 1
+      } else if (val && props.type === 'add') {
+        form.name = ''
+        form.code = ''
+        form.contactPhone = ''
+        form.description = ''
+        form.status = 1
+        form.adminUserName = ''
+        form.adminPassword = ''
+        form.adminNickName = ''
+      }
+    }
+  )
+
+  async function handleSubmit() {
+    if (!formRef.value) return
+    try {
+      await formRef.value.validate()
+    } catch {
+      return
+    }
+    submitting.value = true
+    try {
+      emit('submit', { ...form })
+    } finally {
+      submitting.value = false
+    }
+  }
 </script>

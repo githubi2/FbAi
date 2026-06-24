@@ -21,9 +21,22 @@
     >
       <template #menuType>
         <ElRadioGroup v-model="form.menuType" :disabled="disableMenuType">
+          <ElRadioButton value="directory" label="directory">目录</ElRadioButton>
           <ElRadioButton value="menu" label="menu">菜单</ElRadioButton>
           <ElRadioButton value="button" label="button">按钮</ElRadioButton>
         </ElRadioGroup>
+      </template>
+      <template v-if="form.menuType !== 'button'" #parentId>
+        <ElTreeSelect
+          v-model="form.parentId"
+          :data="menuTreeOptions"
+          :props="{ label: 'label', value: 'id', children: 'children' } as any"
+          placeholder="无（顶级菜单）"
+          clearable
+          check-strictly
+          filterable
+          style="width: 100%"
+        />
       </template>
     </ArtForm>
 
@@ -40,7 +53,6 @@
   import type { FormRules } from 'element-plus'
   import { ElIcon, ElTooltip } from 'element-plus'
   import { QuestionFilled } from '@element-plus/icons-vue'
-  import { formatMenuTitle } from '@/utils/router'
   import type { AppRouteRecord } from '@/types/router'
   import type { FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtForm from '@/components/core/forms/art-form/index.vue'
@@ -71,9 +83,10 @@
 
   interface MenuFormData {
     id: number
+    parentId: number
+    title: string
     name: string
     path: string
-    label: string
     component: string
     icon: string
     isEnable: boolean
@@ -99,8 +112,9 @@
   interface Props {
     visible: boolean
     editData?: AppRouteRecord | any
-    type?: 'menu' | 'button'
+    type?: 'menu' | 'button' | 'directory'
     lockType?: boolean
+    menuTree?: AppRouteRecord[]
   }
 
   interface Emits {
@@ -111,7 +125,8 @@
   const props = withDefaults(defineProps<Props>(), {
     visible: false,
     type: 'menu',
-    lockType: false
+    lockType: false,
+    menuTree: () => []
   })
 
   const emit = defineEmits<Emits>()
@@ -119,12 +134,13 @@
   const formRef = ref()
   const isEdit = ref(false)
 
-  const form = reactive<MenuFormData & { menuType: 'menu' | 'button' }>({
+  const form = reactive<MenuFormData & { menuType: 'menu' | 'button' | 'directory' }>({
     menuType: 'menu',
     id: 0,
+    parentId: 0,
+    title: '',
     name: '',
     path: '',
-    label: '',
     component: '',
     icon: '',
     isEnable: true,
@@ -148,14 +164,53 @@
   })
 
   const rules = reactive<FormRules>({
-    name: [
+    title: [
       { required: true, message: '请输入菜单名称', trigger: 'blur' },
-      { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
+      { min: 2, max: 64, message: '长度在 2 到 64 个字符', trigger: 'blur' }
     ],
-    path: [{ required: true, message: '请输入路由地址', trigger: 'blur' }],
-    label: [{ required: true, message: '输入权限标识', trigger: 'blur' }],
+    name: [
+      { required: true, message: '请输入路由标识', trigger: 'blur' },
+      { min: 2, max: 64, message: '长度在 2 到 64 个字符', trigger: 'blur' },
+      {
+        pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/,
+        message: '必须以字母开头，只允许字母/数字/下划线',
+        trigger: 'blur'
+      }
+    ],
+    path: [
+      { required: true, message: '请输入路由地址', trigger: 'blur' },
+      { max: 128, message: '长度不能超过 128 个字符', trigger: 'blur' }
+    ],
+    component: [{ max: 128, message: '长度不能超过 128 个字符', trigger: 'blur' }],
+    icon: [{ max: 64, message: '长度不能超过 64 个字符', trigger: 'blur' }],
+    sort: [{ type: 'number', min: 0, message: '排序必须 >= 0', trigger: 'blur' }],
+    link: [{ type: 'url', message: '请输入有效的 URL 地址', trigger: 'blur' }],
     authName: [{ required: true, message: '请输入权限名称', trigger: 'blur' }],
     authLabel: [{ required: true, message: '请输入权限标识', trigger: 'blur' }]
+  })
+
+  /**
+   * 将菜单树转为 ElTreeSelect 的选项格式
+   */
+  const menuTreeOptions = computed(() => {
+    const transform = (nodes: any[], depth: number = 0): any[] => {
+      if (!Array.isArray(nodes)) return []
+      return nodes
+        .filter((n: any) => {
+          // 排除按钮类型，且编辑时排除自身及其子节点
+          const isButton = n.meta?.menuType === 'button'
+          if (isButton) return false
+          if (isEdit.value && form.id && n.id === form.id) return false
+          return true
+        })
+        .map((n: any) => ({
+          id: n.id,
+          label: (depth > 0 ? '├ ' : '') + (n.meta?.title || n.name || ''),
+          children: n.children?.length ? transform(n.children, depth + 1) : undefined,
+          disabled: isEdit.value && form.id && n.id === form.id
+        }))
+    }
+    return transform(props.menuTree || [])
   })
 
   /**
@@ -167,10 +222,69 @@
     // Switch 组件的 span：小屏幕 12，大屏幕 6
     const switchSpan = width.value < 640 ? 12 : 6
 
+    // 上级菜单选择器（目录和菜单类型都显示）
+    const parentMenuItem: FormItem = {
+      label: '上级菜单',
+      key: 'parentId',
+      span: 12
+    }
+
+    if (form.menuType === 'directory') {
+      return [
+        ...baseItems,
+        parentMenuItem,
+        {
+          label: '目录名称',
+          key: 'title',
+          type: 'input',
+          props: { placeholder: '目录显示名称（支持中文）' }
+        },
+        {
+          label: '路由标识',
+          key: 'name',
+          type: 'input',
+          props: { placeholder: '路由 name（英文字母开头）' }
+        },
+        {
+          label: createLabelTooltip('路由地址', '以 / 开头的绝对路径（如 /system、/dashboard）'),
+          key: 'path',
+          type: 'input',
+          props: { placeholder: '如：/system' }
+        },
+        {
+          label: createLabelTooltip('组件路径', '目录通常填写 /index/index'),
+          key: 'component',
+          type: 'input',
+          props: { placeholder: '如：/index/index' }
+        },
+        { label: '图标', key: 'icon', type: 'input', props: { placeholder: '如：ri:folder-line' } },
+        {
+          label: '菜单排序',
+          key: 'sort',
+          type: 'number',
+          props: { min: 1, controlsPosition: 'right', style: { width: '100%' } }
+        },
+        { label: '是否启用', key: 'isEnable', type: 'switch', span: switchSpan },
+        { label: '隐藏菜单', key: 'isHide', type: 'switch', span: switchSpan }
+      ]
+    }
+
     if (form.menuType === 'menu') {
       return [
         ...baseItems,
-        { label: '菜单名称', key: 'name', type: 'input', props: { placeholder: '菜单名称' } },
+        parentMenuItem,
+        {
+          label: '菜单名称',
+          key: 'title',
+          type: 'input',
+          props: { placeholder: '菜单显示名称（支持中文）' }
+        },
+        {
+          label: '路由标识',
+          key: 'name',
+          type: 'input',
+          props: { placeholder: '路由 name（英文字母开头）' }
+        },
         {
           label: createLabelTooltip(
             '路由地址',
@@ -180,7 +294,6 @@
           type: 'input',
           props: { placeholder: '如：/dashboard 或 console' }
         },
-        { label: '权限标识', key: 'label', type: 'input', props: { placeholder: '如：User' } },
         {
           label: createLabelTooltip(
             '组件路径',
@@ -262,7 +375,8 @@
   })
 
   const dialogTitle = computed(() => {
-    const type = form.menuType === 'menu' ? '菜单' : '按钮'
+    const typeMap: Record<string, string> = { directory: '目录', menu: '菜单', button: '按钮' }
+    const type = typeMap[form.menuType] || '菜单'
     return isEdit.value ? `编辑${type}` : `新建${type}`
   })
 
@@ -270,8 +384,7 @@
    * 是否禁用菜单类型切换
    */
   const disableMenuType = computed(() => {
-    if (isEdit.value) return true
-    if (!isEdit.value && form.menuType === 'menu' && props.lockType) return true
+    if (props.lockType) return true
     return false
   })
 
@@ -291,12 +404,19 @@
 
     isEdit.value = true
 
-    if (form.menuType === 'menu') {
+    // 根据后端实际 menuType 设置表单类型（编辑时）
+    const backendType = props.editData.meta?.menuType || props.editData.menuType
+    if (backendType && ['directory', 'menu', 'button'].includes(backendType)) {
+      form.menuType = backendType
+    }
+
+    if (form.menuType === 'directory' || form.menuType === 'menu') {
       const row = props.editData
       form.id = row.id || 0
-      form.name = formatMenuTitle(row.meta?.title || '')
+      form.parentId = row.meta?.parentId || row.parentId || 0
+      form.title = row.meta?.title || ''
+      form.name = row.name || ''
       form.path = row.path || ''
-      form.label = row.name || ''
       form.component = row.component || ''
       form.icon = row.meta?.icon || ''
       form.sort = row.meta?.sort || 1

@@ -136,9 +136,7 @@
           idToNameMap.value = id2Name
           nameToIdMap.value = name2Id
 
-          const checkedNames: string[] = roleMenus
-            .map((id) => id2Name.get(id)!)
-            .filter(Boolean)
+          const checkedNames: string[] = roleMenus.map((id) => id2Name.get(id)!).filter(Boolean)
 
           await nextTick()
           treeRef.value?.setCheckedKeys(checkedNames)

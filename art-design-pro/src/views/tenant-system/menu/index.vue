@@ -9,7 +9,14 @@
         </div>
       </template>
 
-      <ElTable :data="menuTreeData" row-key="id" border stripe style="width: 100%" default-expand-all>
+      <ElTable
+        :data="menuTreeData"
+        row-key="id"
+        border
+        stripe
+        style="width: 100%"
+        default-expand-all
+      >
         <ElTableColumn prop="title" label="菜单名称" minWidth="200">
           <template #default="{ row }">
             <div :style="{ paddingLeft: row._level * 24 + 'px' }" class="flex items-center gap-2">
@@ -28,7 +35,9 @@
         </ElTableColumn>
         <ElTableColumn prop="component" label="组件路径" minWidth="200">
           <template #default="{ row }">
-            <code v-if="row.component" class="text-xs bg-gray-100 px-1 rounded">{{ row.component }}</code>
+            <code v-if="row.component" class="text-xs bg-gray-100 px-1 rounded">{{
+              row.component
+            }}</code>
             <span v-else class="text-gray-400">—</span>
           </template>
         </ElTableColumn>

@@ -38,7 +38,12 @@
   import { ref, nextTick, h } from 'vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import { useTable } from '@/hooks/core/useTable'
-  import { fetchGetUserList, fetchCreateUser, fetchUpdateUser, fetchDeleteUser } from '@/api/system-manage'
+  import {
+    fetchGetUserList,
+    fetchCreateUser,
+    fetchUpdateUser,
+    fetchDeleteUser
+  } from '@/api/system-manage'
   import TenantUserSearch from './modules/user-search.vue'
   import TenantUserDialog from './modules/user-dialog.vue'
   import { ElTag, ElMessageBox, ElMessage } from 'element-plus'
@@ -104,7 +109,7 @@
           label: '角色',
           minWidth: 100,
           formatter: (row) => {
-            const roleName = row.roleName || (row.userRoles?.[0]) || '—'
+            const roleName = row.roleName || row.userRoles?.[0] || '—'
             return h(ElTag, { type: 'primary' }, () => roleName)
           }
         },
@@ -113,7 +118,8 @@
           label: '状态',
           minWidth: 90,
           formatter: (row) => {
-            const statusNum = typeof row.status === 'number' ? row.status : parseInt(row.status) || 0
+            const statusNum =
+              typeof row.status === 'number' ? row.status : parseInt(row.status) || 0
             const statusConfig = getUserStatusConfig(statusNum)
             return h(ElTag, { type: statusConfig.type }, () => statusConfig.text)
           }
@@ -152,7 +158,7 @@
           ...item,
           userName: item.userName || item.username || '',
           nickName: item.nickName || '',
-          roleName: item.roleName || (item.userRoles?.[0]) || '',
+          roleName: item.roleName || item.userRoles?.[0] || '',
           roleId: item.roleId || item.role_id,
           status: Number(item.status),
           createTime: item.createTime || '',

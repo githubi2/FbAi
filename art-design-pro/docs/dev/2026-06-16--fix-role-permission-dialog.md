@@ -1,12 +1,13 @@
 # Fix Role Permission Dialog — 2026-06-16
 
 ## Problem
+
 角色管理的「菜单权限」编辑弹窗所有角色都不显示已勾选的菜单权限，保存功能也未实现。
 
 ## Root Cause Analysis (Round 1)
 
 | # | Bug | Impact |
-|---|-----|--------|
+| --- | --- | --- |
 | 1 | `:default-checked-keys="[1,2,3]"` + `node-key="name"` 类型不匹配 | 数字 key 匹配不到字符串 name，所有角色不显示勾选 |
 | 2 | `watch` 弹窗打开时未调用 API 加载角色权限 | 只有 TODO + console.log |
 | 3 | `savePermission` 未实现 | 只有 TODO，仅弹出虚拟 toast |
@@ -17,6 +18,7 @@
 **项目运行在 `VITE_ACCESS_MODE=frontend` 模式。**
 
 第一次修复将 `node-key` 改为 `"id"`，但在 frontend 模式下：
+
 - `menuList` 来自 `asyncRoutes`（前端路由定义）
 - 前端路由 **没有 `id` 字段**（`AppRouteRecord.id` 是 optional 且未赋值）
 - 树节点 key 全部为 `undefined` → `setCheckedKeys()` 永远无法匹配
@@ -36,15 +38,15 @@ nameToIdMap:  "Dashboard" → 1, "System" → 2, ...
 
 ### 修改内容
 
-| 变更 | 说明 |
-|------|------|
-| `node-key` 保持 `"name"` | 与前端路由 name 字段一致 |
-| 弹窗打开时调用 `fetchGetRoleMenus` | 获取 `{ allMenus, roleMenus }` |
-| 构建 `idToNameMap` / `nameToIdMap` | 基于 `allMenus` 数据 |
-| 加载：`roleMenus(ID)` → `name` 列表 → `setCheckedKeys` | 后端 ID 转为树节点 name |
-| 保存：勾选的 `name` → `ID` 列表 → `fetchUpdateRole` | 前端 name 转为后端 ID |
-| `getAllNodeKeys` 使用 `name` | 与 `node-key="name"` 一致 |
-| 修复 `handleClose` 重置 `isSelectAll` | 关闭弹窗时重置全选按钮 |
+| 变更                                                   | 说明                           |
+| ------------------------------------------------------ | ------------------------------ |
+| `node-key` 保持 `"name"`                               | 与前端路由 name 字段一致       |
+| 弹窗打开时调用 `fetchGetRoleMenus`                     | 获取 `{ allMenus, roleMenus }` |
+| 构建 `idToNameMap` / `nameToIdMap`                     | 基于 `allMenus` 数据           |
+| 加载：`roleMenus(ID)` → `name` 列表 → `setCheckedKeys` | 后端 ID 转为树节点 name        |
+| 保存：勾选的 `name` → `ID` 列表 → `fetchUpdateRole`    | 前端 name 转为后端 ID          |
+| `getAllNodeKeys` 使用 `name`                           | 与 `node-key="name"` 一致      |
+| 修复 `handleClose` 重置 `isSelectAll`                  | 关闭弹窗时重置全选按钮         |
 
 ### 关键代码
 

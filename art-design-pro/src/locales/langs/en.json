@@ -403,7 +403,27 @@
       "resetLimit": "Reset Limit",
       "hideAdmin": "Hide Admin",
       "accountPush": "Push Account",
-      "selectRowsFirst": "Please select ad accounts first"
+      "selectRowsFirst": "Please select ad accounts first",
+      "addAuthDialogTitle": "Add Ad Account Permissions",
+      "addAuthTabAction": "Operation",
+      "addAuthTabResult": "Result"
+    },
+    "addAuth": {
+      "selectAuthType": "Select permission type",
+      "authorizeAdmin": "Authorize Administrator",
+      "authorizeAdManager": "Authorize Ad Manager",
+      "authorizeAdAnalyst": "Authorize Ad Analyst",
+      "step1Label": "Enter Facebook UID or profile URL (add as friend first)",
+      "step1Placeholder": "Enter Facebook UID or profile URL, one per line\nExample:\n100093137591614\nhttps://www.facebook.com/username\nhttps://www.facebook.com/profile.php?id=61558701983846",
+      "step2Label": "Check friend relationship",
+      "step2Button": "Start Detection",
+      "step3Label": "Use system default execution time interval",
+      "confirm": "Confirm",
+      "noResultYet": "No results yet, please run detection first",
+      "friendStatus": "Friend Status",
+      "isFriend": "Friends",
+      "notFriend": "Not Added",
+      "accountName": "Account Name"
     }
   },
   "table": {
