@@ -435,6 +435,22 @@
       "isFriend": "Friends",
       "notFriend": "Not Added",
       "accountName": "Account Name"
+    },
+    "deleteAuth": {
+      "dialogTitle": "Delete Ad Account Permissions",
+      "modeDeleteTheirs": "Delete their permissions",
+      "modeDeleteExceptTheirs": "Delete all except theirs",
+      "modeDeleteExceptSelf": "Delete all except self",
+      "modeDeleteSelf": "Delete self",
+      "modeDeleteBM": "Delete BM",
+      "step1Label": "Enter Facebook UID or profile URL",
+      "step1Placeholder": "Enter Facebook UID or profile URL, one per line\nExample:\n100093137591614\nhttps://www.facebook.com/username\nhttps://www.facebook.com/profile.php?id=61558701983846",
+      "step2Label": "Delete current Facebook account permissions?",
+      "inputRequired": "Please enter UID or check delete current account",
+      "resultTitle": "Delete Execution Result",
+      "deleteSuccess": "Delete successful! {count} accounts total",
+      "deletePartial": "Partial delete: {success} success, {failed} failed",
+      "deleteFailed": "Delete failed, please check permissions or retry"
     }
   },
   "table": {

@@ -160,12 +160,16 @@
 
     <!-- 增加授权弹窗 -->
     <AddAuthDialog v-model="addAuthDialogVisible" :selected-ad-accounts="selectedRows" />
+
+    <!-- 删除授权弹窗 -->
+    <DeleteAuthDialog v-model="deleteAuthDialogVisible" :selected-ad-accounts="selectedRows" />
   </div>
 </template>
 
 <script setup lang="ts">
   import { h, ref, reactive } from 'vue'
   import AddAuthDialog from './components/AddAuthDialog.vue'
+  import DeleteAuthDialog from './components/DeleteAuthDialog.vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import {
@@ -203,6 +207,9 @@
       case 'addAuth':
         addAuthDialogVisible.value = true
         break
+      case 'deleteAuth':
+        deleteAuthDialogVisible.value = true
+        break
       default:
         console.log('Batch action:', action, selectedRows.value)
         break
@@ -211,6 +218,7 @@
 
   // ==================== 增加授权弹窗 ====================
   const addAuthDialogVisible = ref(false)
+  const deleteAuthDialogVisible = ref(false)
 
   // ==================== 搜索筛选 ====================
   const searchForm = reactive({

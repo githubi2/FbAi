@@ -254,3 +254,22 @@ export function fetchLookupFbUsers(uids: string[]) {
     showErrorMessage: true
   })
 }
+
+// ==================== 删除广告账号权限 ====================
+
+/** 删除权限请求参数 */
+export interface FbRemoveUserParams {
+  adAccountIds: string[]
+  uids: string[]
+  mode: string
+  deleteCurrent: boolean
+}
+
+/** 删除权限响应 */
+export function fetchRemoveAdAccountUser(params: FbRemoveUserParams) {
+  return request.post<FbAssignUserResponse>({
+    url: '/api/v1/fb/ad-accounts/remove-user',
+    data: params,
+    showErrorMessage: true
+  })
+}

@@ -435,6 +435,22 @@
       "isFriend": "已是好友",
       "notFriend": "未添加",
       "accountName": "账号名称"
+    },
+    "deleteAuth": {
+      "dialogTitle": "删除广告账号权限",
+      "modeDeleteTheirs": "删除它们的权限",
+      "modeDeleteExceptTheirs": "除了它们，删除所有",
+      "modeDeleteExceptSelf": "除了自己，删除所有",
+      "modeDeleteSelf": "删除自己",
+      "modeDeleteBM": "删除BM",
+      "step1Label": "输入Facebook社交账号的UID或主页地址",
+      "step1Placeholder": "请输入Facebook UID或主页地址，每行一个\n例如：\n100093137591614\nhttps://www.facebook.com/username\nhttps://www.facebook.com/profile.php?id=61558701983846",
+      "step2Label": "删除当前Facebook账号的权限?",
+      "inputRequired": "请输入UID或勾选删除当前账号权限",
+      "resultTitle": "删除执行结果",
+      "deleteSuccess": "删除成功！共 {count} 个账户",
+      "deletePartial": "部分删除成功：{success} 成功，{failed} 失败",
+      "deleteFailed": "删除失败，请检查权限或重试"
     }
   },
   "table": {
