@@ -286,7 +286,7 @@
     .auth-step {
       display: flex;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 28px;
     }
 
     .auth-step:last-child {
@@ -331,11 +331,6 @@
     .auth-step-body {
       flex: 1;
       min-width: 0;
-      padding-bottom: 20px;
-    }
-
-    .auth-step:last-child .auth-step-body {
-      padding-bottom: 0;
     }
 
     .auth-step-head {
