@@ -280,7 +280,7 @@
       padding-left: 36px;
       margin-bottom: 20px;
 
-      /* 连接线 */
+      /* 连接线：圆圈中心 36+12=48px, 线宽2px → left:47px */
       &::before {
         content: '';
         position: absolute;
