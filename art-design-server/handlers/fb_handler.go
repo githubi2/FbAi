@@ -583,3 +583,27 @@ func (h *FbHandler) LookupUsers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.Success(result))
 }
+
+// RemoveUser POST /api/v1/fb/ad-accounts/remove-user — 删除广告账号权限
+func (h *FbHandler) RemoveUser(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	var req models.FbRemoveUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "参数错误: "+err.Error()))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.RemoveAdAccountUser(userID, tenantID, &req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(result))
+}

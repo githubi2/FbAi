@@ -119,6 +119,7 @@ func SetupRouter() *gin.Engine {
 				fb.GET("/ad-accounts/detail", handlers.DefaultFbHandler.AdAccountsDetail)
 				fb.GET("/ad-accounts/:id/payments", handlers.DefaultFbHandler.PaymentHistory)
 				fb.POST("/ad-accounts/assign-user", handlers.DefaultFbHandler.AssignUser)
+				fb.POST("/ad-accounts/remove-user", handlers.DefaultFbHandler.RemoveUser)
 				fb.POST("/users/lookup", handlers.DefaultFbHandler.LookupUsers)
 				fb.DELETE("/disconnect", handlers.DefaultFbHandler.Disconnect)
 

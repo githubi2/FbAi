@@ -290,6 +290,15 @@ Login Submit → POST /api/v1/auth/login → { token, refreshToken }
 42. After every completed feature or bugfix: Code → verify (lint, build) → commit → push to GitHub. Never end a session with un-pushed verified code.
 43. Commit granularity: one commit per logical change. No "WIP" commits on master. Always use `pnpm commit` for conventional format.
 
+### Test After Every Change (Rule 44)
+
+44. **每次改完代码都要跑一次测试**。无论是前端还是后端，每次修改完成后必须执行验证：
+    - **前端改动**：`pnpm lint`（ESLint 检查）+ 浏览器实际测试
+    - **后端改动**：`go build`（编译通过）+ API 端点测试（curl/urllib 验证返回值）
+    - **前后端联调**：启动后端 → 前端发起真实请求 → 检查响应格式和业务逻辑
+    - **绝不能跳过测试直接提交**。即使改动看起来"很简单"，也要跑一遍验证。
+    - 测试失败 → 修复 → 重新测试 → 通过后才能 commit + push。
+
 ---
 
 ## 5. Critical Pitfalls (TOP 35)

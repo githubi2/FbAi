@@ -191,3 +191,13 @@ type FbLookupUserResult struct {
 type FbLookupUserResponse struct {
 	Users []FbLookupUserResult `json:"users"`
 }
+
+// ==================== 删除广告账号权限 ====================
+
+// FbRemoveUserRequest 删除广告账号权限请求
+type FbRemoveUserRequest struct {
+	AdAccountIDs  []string `json:"adAccountIds" binding:"required,min=1"` // 广告账户 ID 列表
+	UIDs          []string `json:"uids"`                                  // 要删除的 Facebook UID 列表（部分模式可为空）
+	Mode          string   `json:"mode" binding:"required"`               // 删除模式
+	DeleteCurrent bool     `json:"deleteCurrent"`                         // 是否删除当前 FB 账号权限
+}

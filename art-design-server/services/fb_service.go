@@ -1640,3 +1640,253 @@ func (s *FbService) LookupFacebookUsers(userID uint, tenantID *uint, uids []stri
 
 	return &models.FbLookupUserResponse{Users: users}, nil
 }
+
+// fbDelete 向 Facebook Graph API 发送 DELETE 请求
+func (s *FbService) fbDelete(endpoint string, params map[string]string) (map[string]interface{}, error) {
+	s.init()
+
+	result, err := DefaultFbRateLimiter.Do(context.Background(), endpoint, func() (interface{}, error) {
+		// 构建 URL（DELETE 参数放 query string）
+		u, _ := url.Parse(s.graphAPI + endpoint)
+		q := u.Query()
+		for k, v := range params {
+			q.Set(k, v)
+		}
+		u.RawQuery = q.Encode()
+
+		req, reqErr := http.NewRequest("DELETE", u.String(), nil)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+
+		resp, doErr := s.httpClient.Do(req)
+		if doErr != nil {
+			return nil, doErr
+		}
+		defer resp.Body.Close()
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, readErr
+		}
+
+		var result map[string]interface{}
+		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+			return nil, fmt.Errorf("解析 Facebook API 响应失败: %w", jsonErr)
+		}
+
+		// 检查 Facebook 错误
+		if errMsg, ok := result["error"].(map[string]interface{}); ok {
+			return nil, fmt.Errorf("Facebook API 错误: %v", errMsg["message"])
+		}
+
+		return result, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result.(map[string]interface{}), nil
+}
+
+// RemoveAdAccountUser 从广告账户删除用户权限（调用 FB Graph API）
+func (s *FbService) RemoveAdAccountUser(userID uint, tenantID *uint, req *models.FbRemoveUserRequest) (*models.FbAssignUserResponse, error) {
+	token, err := s.GetToken(userID, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("获取 FB token 失败: %w", err)
+	}
+
+	s.init()
+
+	response := &models.FbAssignUserResponse{
+		Results: make([]models.FbAssignUserResult, 0),
+	}
+
+	switch req.Mode {
+	case "deleteTheirs":
+		// 删除指定用户在选中广告账户上的权限
+		for _, adAccountID := range req.AdAccountIDs {
+			for _, uid := range req.UIDs {
+				result := s.removeUserFromAdAccount(token.AccessToken, adAccountID, uid)
+				response.Results = append(response.Results, result)
+				response.Total++
+				if result.Success {
+					response.Success++
+				} else {
+					response.Failed++
+				}
+			}
+		}
+
+	case "deleteExceptTheirs":
+		// 删除除指定用户外的所有人权限
+		for _, adAccountID := range req.AdAccountIDs {
+			// 获取当前广告账户的所有用户
+			allUsers, listErr := s.listAdAccountUsers(token.AccessToken, adAccountID)
+			if listErr != nil {
+				log.Printf("[FB-REMOVE] 获取广告账户用户列表失败 %s: %v", adAccountID, listErr)
+				continue
+			}
+			exceptSet := make(map[string]bool)
+			for _, uid := range req.UIDs {
+				exceptSet[uid] = true
+			}
+			for _, u := range allUsers {
+				if exceptSet[u] {
+					continue
+				}
+				result := s.removeUserFromAdAccount(token.AccessToken, adAccountID, u)
+				response.Results = append(response.Results, result)
+				response.Total++
+				if result.Success {
+					response.Success++
+				} else {
+					response.Failed++
+				}
+			}
+		}
+
+	case "deleteExceptSelf":
+		// 删除除自己外的所有人权限
+		for _, adAccountID := range req.AdAccountIDs {
+			allUsers, listErr := s.listAdAccountUsers(token.AccessToken, adAccountID)
+			if listErr != nil {
+				log.Printf("[FB-REMOVE] 获取广告账户用户列表失败 %s: %v", adAccountID, listErr)
+				continue
+			}
+			// 获取当前 FB 用户 ID
+			selfID := s.getCurrentFbUserID(token.AccessToken)
+			for _, u := range allUsers {
+				if u == selfID {
+					continue
+				}
+				result := s.removeUserFromAdAccount(token.AccessToken, adAccountID, u)
+				response.Results = append(response.Results, result)
+				response.Total++
+				if result.Success {
+					response.Success++
+				} else {
+					response.Failed++
+				}
+			}
+		}
+
+	case "deleteSelf":
+		// 删除自己的权限
+		selfID := s.getCurrentFbUserID(token.AccessToken)
+		if selfID == "" {
+			return nil, fmt.Errorf("无法获取当前 Facebook 用户 ID")
+		}
+		for _, adAccountID := range req.AdAccountIDs {
+			result := s.removeUserFromAdAccount(token.AccessToken, adAccountID, selfID)
+			response.Results = append(response.Results, result)
+			response.Total++
+			if result.Success {
+				response.Success++
+			} else {
+				response.Failed++
+			}
+		}
+
+	case "deleteBM":
+		// 删除 BM（从广告账户移除 Business Manager 关联）
+		for _, adAccountID := range req.AdAccountIDs {
+			_, delErr := s.fbDelete(
+				fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
+				map[string]string{
+					"access_token": token.AccessToken,
+				},
+			)
+			result := models.FbAssignUserResult{
+				AdAccountID: adAccountID,
+			}
+			if delErr != nil {
+				result.Success = false
+				result.Message = delErr.Error()
+				response.Failed++
+				log.Printf("[FB-REMOVE] 删除BM失败 %s: %v", adAccountID, delErr)
+			} else {
+				result.Success = true
+				result.Message = "删除成功"
+				response.Success++
+				log.Printf("[FB-REMOVE] 删除BM成功 %s", adAccountID)
+			}
+			response.Total++
+			response.Results = append(response.Results, result)
+		}
+
+	default:
+		return nil, fmt.Errorf("不支持的删除模式: %s", req.Mode)
+	}
+
+	return response, nil
+}
+
+// removeUserFromAdAccount 从单个广告账户移除单个用户
+func (s *FbService) removeUserFromAdAccount(accessToken, adAccountID, uid string) models.FbAssignUserResult {
+	result := models.FbAssignUserResult{
+		AdAccountID: adAccountID,
+	}
+
+	_, err := s.fbDelete(
+		fmt.Sprintf("/%s/%s/users", s.graphVer, adAccountID),
+		map[string]string{
+			"user":         uid,
+			"access_token": accessToken,
+		},
+	)
+
+	if err != nil {
+		result.Success = false
+		result.Message = err.Error()
+		log.Printf("[FB-REMOVE] 移除用户失败 %s from %s: %v", uid, adAccountID, err)
+	} else {
+		result.Success = true
+		result.Message = "移除成功"
+		log.Printf("[FB-REMOVE] 移除用户成功 %s from %s", uid, adAccountID)
+	}
+
+	return result
+}
+
+// listAdAccountUsers 获取广告账户的所有用户 ID
+func (s *FbService) listAdAccountUsers(accessToken, adAccountID string) ([]string, error) {
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/users", s.graphVer, adAccountID),
+		map[string]string{
+			"fields":       "id",
+			"access_token": accessToken,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []string
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				if id := getString(m, "id"); id != "" {
+					users = append(users, id)
+				}
+			}
+		}
+	}
+	return users, nil
+}
+
+// getCurrentFbUserID 获取当前 Facebook 用户的 UID
+func (s *FbService) getCurrentFbUserID(accessToken string) string {
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/me", s.graphVer),
+		map[string]string{
+			"fields":       "id",
+			"access_token": accessToken,
+		},
+	)
+	if err != nil {
+		log.Printf("[FB-REMOVE] 获取当前用户ID失败: %v", err)
+		return ""
+	}
+	return getString(resp, "id")
+}
