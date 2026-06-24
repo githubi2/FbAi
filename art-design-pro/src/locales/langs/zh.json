@@ -395,7 +395,15 @@
       "searchKeyword": "搜索关键词",
       "filterStatus": "状态筛选",
       "filterAccountType": "账号类型",
-      "bmNoData": "暂无BM数据"
+      "bmNoData": "暂无BM数据",
+      "addAuth": "增加授权",
+      "deleteAuth": "删除授权",
+      "addToBM": "添加到BM",
+      "setLimit": "设置限额",
+      "resetLimit": "重置限额",
+      "hideAdmin": "隐藏管理员",
+      "accountPush": "账号推送",
+      "selectRowsFirst": "请先选择广告账户"
     }
   },
   "table": {

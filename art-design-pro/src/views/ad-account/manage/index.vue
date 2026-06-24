@@ -40,6 +40,31 @@
           <ElButton @click="handleReset">{{ $t('table.searchBar.reset') }}</ElButton>
         </ElFormItem>
       </ElForm>
+
+      <!-- 批量操作按钮组 -->
+      <div class="batch-actions">
+        <ElButton v-ripple @click="handleBatchAction('addAuth')">{{
+          $t('menus.adAccount.addAuth')
+        }}</ElButton>
+        <ElButton v-ripple @click="handleBatchAction('deleteAuth')">{{
+          $t('menus.adAccount.deleteAuth')
+        }}</ElButton>
+        <ElButton v-ripple @click="handleBatchAction('addToBM')">{{
+          $t('menus.adAccount.addToBM')
+        }}</ElButton>
+        <ElButton v-ripple @click="handleBatchAction('setLimit')">{{
+          $t('menus.adAccount.setLimit')
+        }}</ElButton>
+        <ElButton v-ripple @click="handleBatchAction('resetLimit')">{{
+          $t('menus.adAccount.resetLimit')
+        }}</ElButton>
+        <ElButton v-ripple @click="handleBatchAction('hideAdmin')">{{
+          $t('menus.adAccount.hideAdmin')
+        }}</ElButton>
+        <ElButton v-ripple @click="handleBatchAction('accountPush')">{{
+          $t('menus.adAccount.accountPush')
+        }}</ElButton>
+      </div>
     </ElCard>
 
     <ElCard class="art-table-card">
@@ -58,6 +83,7 @@
         :data="data"
         :columns="columns"
         :pagination="pagination"
+        @selection-change="handleSelectionChange"
         @pagination:size-change="handleSizeChange"
         @pagination:current-change="handleCurrentChange"
       />
@@ -154,6 +180,23 @@
   defineOptions({ name: 'AdAccountManage' })
 
   const { t } = useI18n()
+
+  // ==================== 多选 ====================
+  const selectedRows = ref<FbAdAccountDetail[]>([])
+
+  const handleSelectionChange = (selection: FbAdAccountDetail[]) => {
+    selectedRows.value = selection
+  }
+
+  // ==================== 批量操作（占位） ====================
+  const handleBatchAction = (action: string) => {
+    if (selectedRows.value.length === 0) {
+      ElMessage.warning(t('menus.adAccount.selectRowsFirst'))
+      return
+    }
+    // TODO: 实现各批量操作功能
+    console.log('Batch action:', action, selectedRows.value)
+  }
 
   // ==================== 搜索筛选 ====================
   const searchForm = reactive({
@@ -274,6 +317,7 @@
       apiFn: fetchDetail,
       apiParams: { current: 1, size: 20 },
       columnsFactory: () => [
+        { type: 'selection', width: 55 },
         { type: 'index', width: 55, label: '#' },
         {
           prop: 'accountStatus',
@@ -607,6 +651,15 @@
     :deep(.el-form-item) {
       margin-bottom: 0;
     }
+  }
+
+  .batch-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--el-border-color-lighter);
   }
 
   .admin-dialog-content {

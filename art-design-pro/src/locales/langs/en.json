@@ -395,7 +395,15 @@
       "searchKeyword": "Search keyword",
       "filterStatus": "Filter by status",
       "filterAccountType": "Account type",
-      "bmNoData": "No BM data"
+      "bmNoData": "No BM data",
+      "addAuth": "Add Auth",
+      "deleteAuth": "Delete Auth",
+      "addToBM": "Add to BM",
+      "setLimit": "Set Limit",
+      "resetLimit": "Reset Limit",
+      "hideAdmin": "Hide Admin",
+      "accountPush": "Push Account",
+      "selectRowsFirst": "Please select ad accounts first"
     }
   },
   "table": {
