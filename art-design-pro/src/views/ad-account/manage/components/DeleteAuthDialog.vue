@@ -286,6 +286,10 @@
     .auth-step {
       display: flex;
       gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .auth-step:last-child {
       margin-bottom: 0;
     }
 
