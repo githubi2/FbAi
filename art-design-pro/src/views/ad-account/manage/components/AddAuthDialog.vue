@@ -390,21 +390,6 @@
       padding-left: 36px;
       margin-bottom: 20px;
 
-      /* 连接线 */
-      &::before {
-        content: '';
-        position: absolute;
-        left: 11px;
-        top: 28px;
-        bottom: -20px;
-        width: 2px;
-        background-color: var(--el-border-color);
-      }
-
-      &:last-child::before {
-        display: none;
-      }
-
       &:last-child {
         margin-bottom: 0;
       }
@@ -412,27 +397,26 @@
 
     .auth-step-head {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 12px;
       min-height: 24px;
       margin-bottom: 10px;
     }
 
     .auth-step-num {
-      position: absolute;
-      left: 0;
-      top: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 24px;
       height: 24px;
+      min-width: 24px;
       border-radius: 50%;
       background-color: var(--el-fill-color-dark);
       color: var(--el-text-color-regular);
       font-size: 13px;
       font-weight: 600;
       flex-shrink: 0;
+      line-height: 24px;
     }
 
     .auth-step-label {
@@ -440,6 +424,7 @@
       font-weight: 500;
       color: var(--el-text-color-primary);
       line-height: 24px;
+      padding-top: 0;
 
       .required-star {
         color: var(--el-color-danger);
