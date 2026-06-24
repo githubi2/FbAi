@@ -412,27 +412,26 @@
 
     .auth-step-head {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 12px;
       min-height: 24px;
       margin-bottom: 10px;
     }
 
     .auth-step-num {
-      position: absolute;
-      left: 0;
-      top: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 24px;
       height: 24px;
+      min-width: 24px;
       border-radius: 50%;
       background-color: var(--el-fill-color-dark);
       color: var(--el-text-color-regular);
       font-size: 13px;
       font-weight: 600;
       flex-shrink: 0;
+      line-height: 24px;
     }
 
     .auth-step-label {
