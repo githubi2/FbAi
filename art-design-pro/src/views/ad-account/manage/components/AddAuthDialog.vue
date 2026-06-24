@@ -403,7 +403,6 @@
         margin-right: 4px;
       }
     }
-    }
 
     /* UID输入框 */
     .uid-textarea {
