@@ -54,7 +54,11 @@
 
         <!-- 权限类型选择 -->
         <div class="auth-select-group">
-          <ElSelect v-model="authType" class="auth-select" :placeholder="$t('menus.addAuth.selectAuthType')">
+          <ElSelect
+            v-model="authType"
+            class="auth-select"
+            :placeholder="$t('menus.addAuth.selectAuthType')"
+          >
             <ElOption :label="$t('menus.addAuth.authorizeAdmin')" value="authorizeAdmin" />
             <ElOption :label="$t('menus.addAuth.authorizeAdManager')" value="authorizeAdManager" />
             <ElOption :label="$t('menus.addAuth.authorizeAdAnalyst')" value="authorizeAdAnalyst" />
@@ -88,12 +92,7 @@
             <span class="auth-step-label">{{ $t('menus.addAuth.step2Label') }}</span>
           </div>
           <div class="auth-step-body">
-            <ElButton
-              type="success"
-              class="detect-btn"
-              :loading="detecting"
-              @click="handleDetect"
-            >
+            <ElButton type="success" class="detect-btn" :loading="detecting" @click="handleDetect">
               {{ $t('menus.addAuth.step2Button') }}
             </ElButton>
           </div>
@@ -139,9 +138,15 @@
         <template v-if="assignResult">
           <div class="result-section-title">{{ $t('menus.addAuth.assignResult') }}</div>
           <div class="assign-summary">
-            <ElTag type="success" size="small">{{ $t('menus.addAuth.assignSuccess') }}: {{ assignResult.success }}</ElTag>
-            <ElTag type="danger" size="small">{{ $t('menus.addAuth.assignFailed') }}: {{ assignResult.failed }}</ElTag>
-            <ElTag type="info" size="small">{{ $t('menus.addAuth.assignTotal') }}: {{ assignResult.total }}</ElTag>
+            <ElTag type="success" size="small"
+              >{{ $t('menus.addAuth.assignSuccess') }}: {{ assignResult.success }}</ElTag
+            >
+            <ElTag type="danger" size="small"
+              >{{ $t('menus.addAuth.assignFailed') }}: {{ assignResult.failed }}</ElTag
+            >
+            <ElTag type="info" size="small"
+              >{{ $t('menus.addAuth.assignTotal') }}: {{ assignResult.total }}</ElTag
+            >
           </div>
           <ElTable :data="assignResult.results" border size="small">
             <ElTableColumn prop="adAccountId" label="Ad Account ID" min-width="160" />
@@ -152,11 +157,18 @@
                 </ElTag>
               </template>
             </ElTableColumn>
-            <ElTableColumn prop="message" :label="$t('menus.addAuth.assignMessage')" min-width="200" />
+            <ElTableColumn
+              prop="message"
+              :label="$t('menus.addAuth.assignMessage')"
+              min-width="200"
+            />
           </ElTable>
         </template>
 
-        <ElEmpty v-if="!detectResult && !assignResult" :description="$t('menus.addAuth.noResultYet')" />
+        <ElEmpty
+          v-if="!detectResult && !assignResult"
+          :description="$t('menus.addAuth.noResultYet')"
+        />
       </div>
     </div>
 
@@ -390,19 +402,23 @@
       padding-left: 36px;
       margin-bottom: 20px;
 
-      /* 连接线：圆圈中心 36+12=48px, 线宽2px → left:47px */
+      /* 连接线 */
       &::before {
         content: '';
         position: absolute;
-        left: 47px;
-        top: 26px;
-        bottom: 2px;
+        left: 11px;
+        top: 28px;
+        bottom: 0;
         width: 2px;
         background-color: var(--el-border-color);
       }
 
       &:last-child::before {
         display: none;
+      }
+
+      &:not(:last-child) {
+        padding-bottom: 4px;
       }
 
       &:last-child {
@@ -419,19 +435,21 @@
     }
 
     .auth-step-num {
+      position: absolute;
+      left: 0;
+      top: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 24px;
       height: 24px;
-      min-width: 24px;
       border-radius: 50%;
       background-color: var(--el-fill-color-dark);
       color: var(--el-text-color-regular);
       font-size: 13px;
       font-weight: 600;
+      line-height: 1;
       flex-shrink: 0;
-      line-height: 24px;
     }
 
     .auth-step-label {
