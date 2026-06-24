@@ -507,7 +507,7 @@
       font-size: 15px;
 
       .confirm-icon {
-        margin-right: 6px;
+        margin-right: 8px;
       }
     }
   }
