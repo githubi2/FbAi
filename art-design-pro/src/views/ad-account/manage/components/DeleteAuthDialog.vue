@@ -299,6 +299,7 @@
       align-items: center;
       flex-shrink: 0;
       width: 24px;
+      height: 52px;
     }
 
     .auth-step-num {
