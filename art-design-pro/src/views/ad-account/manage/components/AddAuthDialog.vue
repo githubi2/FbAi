@@ -65,41 +65,32 @@
           </ElSelect>
         </div>
 
-        <!-- 步骤1：输入目标账号 -->
-        <div class="auth-step">
-          <span class="auth-step-num">1</span>
-          <div class="auth-step-line"></div>
-          <div class="auth-step-label">
+        <!-- 输入目标账号 -->
+        <div class="auth-field">
+          <div class="auth-field-label">
             <span class="required-star">*</span>
             {{ $t('menus.addAuth.step1Label') }}
           </div>
-          <div class="auth-step-body">
-            <ElInput
-              v-model="uidInput"
-              type="textarea"
-              :rows="5"
-              :placeholder="$t('menus.addAuth.step1Placeholder')"
-              class="uid-textarea"
-            />
-          </div>
+          <ElInput
+            v-model="uidInput"
+            type="textarea"
+            :rows="5"
+            :placeholder="$t('menus.addAuth.step1Placeholder')"
+            class="uid-textarea"
+          />
         </div>
 
-        <!-- 步骤2：检测好友关系 -->
-        <div class="auth-step">
-          <span class="auth-step-num">2</span>
-          <div class="auth-step-line"></div>
-          <div class="auth-step-label">{{ $t('menus.addAuth.step2Label') }}</div>
-          <div class="auth-step-body">
-            <ElButton type="success" class="detect-btn" :loading="detecting" @click="handleDetect">
-              {{ $t('menus.addAuth.step2Button') }}
-            </ElButton>
-          </div>
+        <!-- 检测好友关系 -->
+        <div class="auth-field">
+          <div class="auth-field-label">{{ $t('menus.addAuth.step2Label') }}</div>
+          <ElButton type="success" class="detect-btn" :loading="detecting" @click="handleDetect">
+            {{ $t('menus.addAuth.step2Button') }}
+          </ElButton>
         </div>
 
-        <!-- 步骤3：系统默认执行时间间隔 -->
-        <div class="auth-step">
-          <span class="auth-step-num">3</span>
-          <ElCheckbox v-model="useDefaultInterval" class="auth-step-label">
+        <!-- 系统默认执行时间间隔 -->
+        <div class="auth-field">
+          <ElCheckbox v-model="useDefaultInterval">
             {{ $t('menus.addAuth.step3Label') }}
           </ElCheckbox>
         </div>
@@ -392,62 +383,26 @@
       }
     }
 
-    /* 步骤 */
-    .auth-step {
-      position: relative;
-      padding-left: 36px;
-      padding-bottom: 28px;
+    /* 表单字段 */
+    .auth-field {
+      margin-bottom: 16px;
 
       &:last-child {
-        padding-bottom: 0;
+        margin-bottom: 0;
       }
     }
 
-    .auth-step-num {
-      position: absolute;
-      left: 0;
-      top: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background-color: var(--el-fill-color-dark);
-      color: var(--el-text-color-regular);
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1;
-    }
-
-    .auth-step-line {
-      position: absolute;
-      left: 11px;
-      top: 28px;
-      bottom: -28px;
-      width: 2px;
-      background-color: var(--el-border-color);
-    }
-
-    .auth-step:last-child .auth-step-line {
-      display: none;
-    }
-
-    .auth-step-label {
+    .auth-field-label {
       font-size: 14px;
       font-weight: 500;
       color: var(--el-text-color-primary);
-      line-height: 24px;
+      margin-bottom: 8px;
 
       .required-star {
         color: var(--el-color-danger);
         margin-right: 4px;
       }
     }
-
-    .auth-step-body {
-      padding-left: 36px;
-      min-width: 0;
     }
 
     /* UID输入框 */
