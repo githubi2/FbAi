@@ -157,11 +157,81 @@
         </div>
       </template>
     </ElDialog>
+
+    <!-- 增加授权弹窗 -->
+    <ElDialog
+      v-model="addAuthDialogVisible"
+      :title="$t('menus.adAccount.addAuthTitle')"
+      width="540px"
+      :close-on-click-modal="false"
+      @close="stopAuthPolling"
+    >
+      <div class="add-auth-dialog-body">
+        <p class="add-auth-dialog-tip">{{ $t('menus.adAccount.addAuthTip') }}</p>
+        <!-- 短链接 -->
+        <div class="short-link-box">
+          <label class="link-label">{{ $t('menus.adAccount.shortLinkLabel') }}</label>
+          <div class="auth-link-box">
+            <ElInput
+              v-model="addAuthShortUrl"
+              readonly
+              :placeholder="$t('menus.adAccount.generatingLink')"
+            />
+            <ElButton type="primary" class="ml-2" @click="copyAddAuthShortUrl">
+              {{
+                addAuthCopySuccess ? $t('menus.adAccount.copied') : $t('menus.adAccount.copyLink')
+              }}
+            </ElButton>
+          </div>
+        </div>
+        <!-- 完整链接 -->
+        <div v-if="addAuthFullUrl" class="full-link-box mt-3">
+          <label class="link-label">{{ $t('menus.adAccount.fullLinkLabel') }}</label>
+          <div class="auth-link-box">
+            <ElInput v-model="addAuthFullUrl" readonly size="small" />
+            <ElButton size="small" class="ml-2" @click="copyAddAuthFullUrl">
+              {{ $t('menus.adAccount.copyLink') }}
+            </ElButton>
+          </div>
+        </div>
+        <div class="add-auth-dialog-actions mt-4">
+          <ElButton @click="openAddAuthUrl">
+            {{ $t('menus.adAccount.openInBrowser') }}
+          </ElButton>
+          <span class="text-gray-400 text-sm ml-2">
+            {{ $t('menus.adAccount.orCopyToOther') }}
+          </span>
+        </div>
+        <!-- 授权成功提示 -->
+        <div v-if="addAuthSuccess" class="add-auth-success-bar mt-4">
+          <ElAlert type="success" :closable="false" show-icon>
+            <template #title>
+              {{ $t('menus.adAccount.addAuthSuccess') }}
+            </template>
+          </ElAlert>
+        </div>
+        <!-- 轮询状态 -->
+        <div v-if="isAddAuthPolling && !addAuthSuccess" class="polling-status mt-4">
+          <ElAlert type="info" :closable="false" show-icon>
+            <template #title>
+              <ElIcon class="is-loading mr-1"><Loading /></ElIcon>
+              {{ $t('menus.adAccount.waitingAuth') }}
+            </template>
+          </ElAlert>
+        </div>
+      </div>
+      <template #footer>
+        <ElButton @click="stopAuthPollingAndClose">{{ $t('menus.adAccount.cancelAuth') }}</ElButton>
+        <ElButton type="primary" :disabled="!addAuthSuccess" @click="handleAddAuthConfirm">
+          {{ $t('common.confirm') }}
+        </ElButton>
+      </template>
+    </ElDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { h, ref, reactive } from 'vue'
+  import { h, ref, reactive, onUnmounted } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import {
@@ -172,10 +242,19 @@
     ElDialog,
     ElMessage,
     ElCheckbox,
-    ElCheckboxGroup
+    ElCheckboxGroup,
+    ElAlert,
+    ElIcon,
+    ElInput
   } from 'element-plus'
+  import { Loading } from '@element-plus/icons-vue'
   import type { FbAdAccountDetail, FbPaymentRecord } from '@/api/facebook'
-  import { fetchFbAdAccountsDetail, fetchFbPaymentHistory } from '@/api/facebook'
+  import {
+    fetchFbAdAccountsDetail,
+    fetchFbPaymentHistory,
+    fetchFbAuthUrl,
+    fetchFbAccountList
+  } from '@/api/facebook'
 
   defineOptions({ name: 'AdAccountManage' })
 
@@ -188,8 +267,12 @@
     selectedRows.value = selection
   }
 
-  // ==================== 批量操作（占位） ====================
+  // ==================== 批量操作 ====================
   const handleBatchAction = (action: string) => {
+    if (action === 'addAuth') {
+      handleOpenAddAuth()
+      return
+    }
     if (selectedRows.value.length === 0) {
       ElMessage.warning(t('menus.adAccount.selectRowsFirst'))
       return
@@ -197,6 +280,119 @@
     // TODO: 实现各批量操作功能
     console.log('Batch action:', action, selectedRows.value)
   }
+
+  // ==================== 增加授权弹窗 ====================
+  const addAuthDialogVisible = ref(false)
+  const addAuthShortUrl = ref('')
+  const addAuthFullUrl = ref('')
+  const addAuthSuccess = ref(false)
+  const addAuthCopySuccess = ref(false)
+  const isAddAuthPolling = ref(false)
+  const isAddAuthLoading = ref(false)
+  let addAuthPollTimer: ReturnType<typeof setInterval> | null = null
+
+  const startAddAuthPolling = () => {
+    if (addAuthPollTimer) return
+    isAddAuthPolling.value = true
+    const initialCount = pagination.total
+    addAuthPollTimer = setInterval(async () => {
+      try {
+        const result = await fetchFbAccountList()
+        if (result.total > initialCount) {
+          stopAuthPolling()
+          addAuthSuccess.value = true
+          ElMessage.success(t('menus.adAccount.addAuthSuccess'))
+        }
+      } catch {
+        // 轮询失败继续
+      }
+    }, 3000)
+  }
+
+  const stopAuthPolling = () => {
+    if (addAuthPollTimer) {
+      clearInterval(addAuthPollTimer)
+      addAuthPollTimer = null
+    }
+    isAddAuthPolling.value = false
+  }
+
+  const stopAuthPollingAndClose = () => {
+    stopAuthPolling()
+    addAuthDialogVisible.value = false
+    addAuthSuccess.value = false
+  }
+
+  const handleAddAuthConfirm = () => {
+    addAuthDialogVisible.value = false
+    addAuthSuccess.value = false
+    refreshData()
+  }
+
+  const handleOpenAddAuth = async () => {
+    isAddAuthLoading.value = true
+    addAuthSuccess.value = false
+    addAuthCopySuccess.value = false
+    try {
+      const { authUrl: full, shortUrl: short } = await fetchFbAuthUrl()
+      addAuthShortUrl.value = short
+      addAuthFullUrl.value = full
+      addAuthDialogVisible.value = true
+      startAddAuthPolling()
+    } catch {
+      ElMessage.error(t('menus.adAccount.authUrlError'))
+    } finally {
+      isAddAuthLoading.value = false
+    }
+  }
+
+  const copyAddAuthShortUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(addAuthShortUrl.value)
+      addAuthCopySuccess.value = true
+      ElMessage.success(t('menus.adAccount.copySuccess'))
+      setTimeout(() => {
+        addAuthCopySuccess.value = false
+      }, 2000)
+    } catch {
+      fallbackAddAuthCopy(addAuthShortUrl.value)
+    }
+  }
+
+  const copyAddAuthFullUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(addAuthFullUrl.value)
+      ElMessage.success(t('menus.adAccount.copySuccess'))
+    } catch {
+      fallbackAddAuthCopy(addAuthFullUrl.value)
+    }
+  }
+
+  const fallbackAddAuthCopy = (text: string) => {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    addAuthCopySuccess.value = true
+    ElMessage.success(t('menus.adAccount.copySuccess'))
+    setTimeout(() => {
+      addAuthCopySuccess.value = false
+    }, 2000)
+  }
+
+  const openAddAuthUrl = () => {
+    if (addAuthFullUrl.value) {
+      window.open(addAuthFullUrl.value, '_blank')
+    }
+  }
+
+  onUnmounted(() => {
+    stopAuthPolling()
+  })
 
   // ==================== 搜索筛选 ====================
   const searchForm = reactive({
@@ -744,6 +940,46 @@
 
     .admin-interval-check {
       margin-top: 4px;
+    }
+  }
+
+  .add-auth-dialog-body {
+    .add-auth-dialog-tip {
+      font-size: 14px;
+      color: var(--el-text-color-regular);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .short-link-box,
+    .full-link-box {
+      .link-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--el-text-color-secondary);
+        margin-bottom: 6px;
+      }
+
+      .auth-link-box {
+        display: flex;
+        align-items: center;
+
+        :deep(.el-input) {
+          flex: 1;
+        }
+      }
+    }
+
+    .add-auth-dialog-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    .add-auth-success-bar {
+      :deep(.el-alert__title) {
+        font-weight: 500;
+      }
     }
   }
 </style>
