@@ -84,7 +84,7 @@
         <div class="auth-field">
           <div class="auth-field-label">{{ $t('menus.addAuth.step2Label') }}</div>
           <ElButton type="success" class="detect-btn" :loading="detecting" @click="handleDetect">
-            {{ $t('menus.addAuth.step2Button') }}
+            {{ detectedOnce ? $t('menus.addAuth.reDetect') : $t('menus.addAuth.step2Button') }}
           </ElButton>
         </div>
 
@@ -98,27 +98,41 @@
 
       <!-- 结果面板 -->
       <div v-show="activeTab === 'result'" class="auth-result-panel">
-        <!-- 检测结果 -->
+        <!-- 检测结果：一个账号一个方块 -->
         <template v-if="detectResult">
           <div class="result-section-title">{{ $t('menus.addAuth.lookupResult') }}</div>
-          <ElTable :data="detectResult" border size="small">
-            <ElTableColumn prop="uid" label="UID" min-width="140" />
-            <ElTableColumn prop="name" :label="$t('menus.addAuth.accountName')" min-width="120">
-              <template #default="{ row }">
-                <div class="user-info">
-                  <img v-if="row.avatar" :src="row.avatar" class="user-avatar" alt="" />
-                  <span>{{ row.name || '-' }}</span>
-                </div>
-              </template>
-            </ElTableColumn>
-            <ElTableColumn prop="isFriend" :label="$t('menus.addAuth.friendStatus')" width="100">
-              <template #default="{ row }">
-                <ElTag :type="row.isFriend ? 'success' : 'danger'" size="small">
-                  {{ row.isFriend ? $t('menus.addAuth.isFriend') : $t('menus.addAuth.notFriend') }}
+          <div class="result-cards">
+            <div v-for="user in detectResult" :key="user.uid" class="result-card">
+              <div class="result-row">
+                <span class="result-label">{{ $t('menus.addAuth.cardStatus') }}</span>
+                <ElTag :type="user.isFriend ? 'success' : 'danger'" size="small">
+                  {{
+                    user.isFriend ? $t('menus.addAuth.assignOk') : $t('menus.addAuth.assignFail')
+                  }}
                 </ElTag>
-              </template>
-            </ElTableColumn>
-          </ElTable>
+              </div>
+              <div class="result-row">
+                <span class="result-label">
+                  {{
+                    user.isFriend
+                      ? $t('menus.addAuth.cardSuccessAccount')
+                      : $t('menus.addAuth.cardFailAccount')
+                  }}
+                </span>
+                <span class="result-value link">{{ user.rawInput }}</span>
+              </div>
+              <div class="result-row">
+                <span class="result-label">{{ $t('menus.addAuth.cardCurrentAccount') }}</span>
+                <span class="result-value link">{{ fbProfileUrl(user.uid) }}</span>
+              </div>
+              <div class="result-row">
+                <span class="result-label">{{ $t('menus.addAuth.cardMessage') }}</span>
+                <span class="result-value">
+                  {{ user.isFriend ? $t('menus.addAuth.friendYes') : $t('menus.addAuth.friendNo') }}
+                </span>
+              </div>
+            </div>
+          </div>
         </template>
 
         <!-- 授权结果 -->
@@ -135,21 +149,28 @@
               >{{ $t('menus.addAuth.assignTotal') }}: {{ assignResult.total }}</ElTag
             >
           </div>
-          <ElTable :data="assignResult.results" border size="small">
-            <ElTableColumn prop="adAccountId" label="Ad Account ID" min-width="160" />
-            <ElTableColumn prop="success" :label="$t('menus.addAuth.assignStatus')" width="100">
-              <template #default="{ row }">
-                <ElTag :type="row.success ? 'success' : 'danger'" size="small">
-                  {{ row.success ? $t('menus.addAuth.assignOk') : $t('menus.addAuth.assignFail') }}
+          <div class="result-cards">
+            <div
+              v-for="(item, idx) in assignResult.results"
+              :key="`${item.adAccountId}-${idx}`"
+              class="result-card"
+            >
+              <div class="result-row">
+                <span class="result-label">{{ $t('menus.addAuth.assignStatus') }}</span>
+                <ElTag :type="item.success ? 'success' : 'danger'" size="small">
+                  {{ item.success ? $t('menus.addAuth.assignOk') : $t('menus.addAuth.assignFail') }}
                 </ElTag>
-              </template>
-            </ElTableColumn>
-            <ElTableColumn
-              prop="message"
-              :label="$t('menus.addAuth.assignMessage')"
-              min-width="200"
-            />
-          </ElTable>
+              </div>
+              <div class="result-row">
+                <span class="result-label">{{ $t('menus.addAuth.cardAccount') }}</span>
+                <span class="result-value link">{{ item.adAccountId }}</span>
+              </div>
+              <div class="result-row">
+                <span class="result-label">{{ $t('menus.addAuth.cardMessage') }}</span>
+                <span class="result-value">{{ item.message || '-' }}</span>
+              </div>
+            </div>
+          </div>
         </template>
 
         <ElEmpty
@@ -208,8 +229,14 @@
   const detecting = ref(false)
   const submitting = ref(false)
 
-  // 检测结果
-  const detectResult = ref<FbLookupUserResult[] | null>(null)
+  // 检测结果（rawInput 为用户输入的原始行，用于结果展示）
+  interface DetectResultItem extends FbLookupUserResult {
+    rawInput: string
+  }
+  const detectResult = ref<DetectResultItem[] | null>(null)
+
+  // 是否已完成过一次检测（控制按钮文案：开始检测 → 重新检测）
+  const detectedOnce = ref(false)
 
   // 授权结果
   const assignResult = ref<FbAssignUserResponse | null>(null)
@@ -221,8 +248,8 @@
     authorizeAdAnalyst: 'ANALYST'
   }
 
-  // 解析输入的 UID 列表
-  const parseUIDs = (): string[] => {
+  // 解析输入行：提取 UID，并保留原始输入用于结果展示
+  const parseUIDPairs = (): { raw: string; uid: string }[] => {
     return uidInput.value
       .split('\n')
       .map((l) => l.trim())
@@ -230,14 +257,23 @@
       .map((line) => {
         // 从 URL 中提取 UID
         const urlMatch = line.match(/facebook\.com\/profile\.php\?id=(\d+)/)
-        if (urlMatch) return urlMatch[1]
+        if (urlMatch) return { raw: line, uid: urlMatch[1] }
         // 如果是纯数字 UID，直接返回
-        if (/^\d+$/.test(line)) return line
+        if (/^\d+$/.test(line)) return { raw: line, uid: line }
         // 其他 URL 格式，提取路径部分
         const pathMatch = line.match(/facebook\.com\/([^/?]+)/)
-        if (pathMatch) return pathMatch[1]
-        return line
+        if (pathMatch) return { raw: line, uid: pathMatch[1] }
+        return { raw: line, uid: line }
       })
+  }
+
+  // 解析输入的 UID 列表
+  const parseUIDs = (): string[] => parseUIDPairs().map((p) => p.uid)
+
+  // 生成 Facebook 主页地址
+  const fbProfileUrl = (uid: string): string => {
+    if (/^\d+$/.test(uid)) return `https://www.facebook.com/profile.php?id=${uid}`
+    return `https://www.facebook.com/${uid}`
   }
 
   // ==================== 检测好友关系 ====================
@@ -248,12 +284,18 @@
     }
 
     detecting.value = true
-    activeTab.value = 'result'
 
     try {
-      const uids = parseUIDs()
-      const result = await fetchLookupFbUsers(uids)
-      detectResult.value = result.users
+      const pairs = parseUIDPairs()
+      const result = await fetchLookupFbUsers(pairs.map((p) => p.uid))
+      // 把原始输入行关联回检测结果（优先按 UID 匹配，退化为按顺序）
+      detectResult.value = result.users.map((u, idx) => ({
+        ...u,
+        rawInput: pairs.find((p) => p.uid === u.uid)?.raw ?? pairs[idx]?.raw ?? u.uid
+      }))
+      detectedOnce.value = true
+      // 等结果返回后再跳转到结果标签页
+      activeTab.value = 'result'
       ElMessage.success('检测完成')
     } catch {
       ElMessage.error('检测失败，请重试')
@@ -433,16 +475,40 @@
         border-bottom: 1px solid var(--el-border-color-lighter);
       }
 
-      .user-info {
+      /* 结果方块卡片 */
+      .result-cards {
         display: flex;
-        align-items: center;
-        gap: 8px;
+        flex-direction: column;
+        gap: 12px;
 
-        .user-avatar {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          object-fit: cover;
+        .result-card {
+          padding: 12px 16px;
+          border: 1px solid var(--el-border-color-lighter);
+          border-radius: 6px;
+
+          .result-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 0;
+
+            .result-label {
+              flex-shrink: 0;
+              width: 64px;
+              font-size: 13px;
+              color: var(--el-text-color-secondary);
+            }
+
+            .result-value {
+              font-size: 13px;
+              color: var(--el-text-color-primary);
+              word-break: break-all;
+
+              &.link {
+                color: var(--el-color-primary);
+              }
+            }
+          }
         }
       }
 

@@ -58,7 +58,7 @@ func (s *FbService) init() {
 		}
 
 		// 初始化 HTTP 客户端（支持 SOCKS5 代理）
-		s.httpClient = &http.Client{Timeout: 30 * time.Second}
+		s.httpClient = &http.Client{Timeout: 120 * time.Second}
 		fbProxy := os.Getenv("FB_PROXY")
 		if fbProxy == "" {
 			fbProxy = os.Getenv("HTTPS_PROXY")
@@ -574,10 +574,24 @@ func (s *FbService) Disconnect(id uint, userID uint, tenantID *uint) error {
 	ctx := context.Background()
 	_, err := db.Pool.Exec(ctx,
 		`UPDATE fb_tokens SET status = 0, updated_at = NOW()
-		 WHERE id = $1 AND user_id = $2 AND tenant_id IS NOT DISTINCT FROM $3`,
+	 WHERE id = $1 AND user_id = $2 AND tenant_id IS NOT DISTINCT FROM $3`,
 		id, userID, tenantID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// 清理缓存
+	db.Pool.Exec(ctx,
+		`DELETE FROM fb_accounts_cache WHERE fb_token_id = $1 AND user_id = $2`,
+		id, userID,
+	)
+	db.Pool.Exec(ctx,
+		`DELETE FROM fb_ad_accounts_cache WHERE fb_token_id = $1 AND user_id = $2`,
+		id, userID,
+	)
+
+	return nil
 }
 
 // DisconnectAll 断开用户所有已连接的 FB 账号（租户隔离）
@@ -587,12 +601,48 @@ func (s *FbService) DisconnectAll(userID uint, tenantID *uint) error {
 	}
 
 	ctx := context.Background()
-	_, err := db.Pool.Exec(ctx,
-		`UPDATE fb_tokens SET status = 0, updated_at = NOW()
-		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+
+	// 获取要断开的 token IDs
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id FROM fb_tokens WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
 		userID, tenantID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var ids []uint
+	for rows.Next() {
+		var id uint
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	// 更新状态
+	_, err = db.Pool.Exec(ctx,
+		`UPDATE fb_tokens SET status = 0, updated_at = NOW()
+	 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return err
+	}
+
+	// 清理缓存
+	for _, id := range ids {
+		db.Pool.Exec(ctx,
+			`DELETE FROM fb_accounts_cache WHERE fb_token_id = $1 AND user_id = $2`,
+			id, userID,
+		)
+		db.Pool.Exec(ctx,
+			`DELETE FROM fb_ad_accounts_cache WHERE fb_token_id = $1 AND user_id = $2`,
+			id, userID,
+		)
+	}
+
+	return nil
 }
 
 // GetTokenByID 按主键获取指定 token（租户隔离）
@@ -908,6 +958,19 @@ func getInt(m map[string]interface{}, key string) int {
 	}
 }
 
+// isNumericUID 判断是否为纯数字 Facebook UID
+func isNumericUID(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // setLastError 更新 fb_tokens 的 last_error 字段
 func (s *FbService) setLastError(tokenID uint, errMsg string) {
 	if db.Pool == nil || tokenID == 0 {
@@ -1006,7 +1069,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 		adAccResp, err := s.fbGet(
 			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
 			map[string]string{
-				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,business{name},owner,users{name},timezone_name,timezone_offset_hours_utc,created_time",
+				"fields":       "id,account_id,name,account_status,currency,amount_spent,spend_cap,balance,is_prepay_account,user_tasks,business{name},owner,users{name},timezone_name,timezone_offset_hours_utc,created_time",
 				"access_token": accessToken,
 				"limit":        "100",
 			},
@@ -1026,6 +1089,7 @@ func (s *FbService) GetAdAccountsDetail(userID uint, tenantID *uint) (*models.Fb
 				if acc, ok := item.(map[string]interface{}); ok {
 					accID := getString(acc, "id") // act_xxx 格式
 					detail := s.parseAdAccountDetail(acc, fbUserID, fbUserName)
+					detail.TokenID = tokenID // 记录所属 token，供缓存表关联
 
 					// 通过单个账户端点获取高级字段
 					if accID != "" {
@@ -1107,24 +1171,67 @@ func (s *FbService) enrichAdAccountDetail(adAccountID, accessToken string, base 
 		}
 	}
 
-	// 日限额单独测试（可能已弃用）
-	resp3, err3 := s.fbGet(
-		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
-		map[string]string{
-			"fields":       "daily_spend_limit",
-			"access_token": accessToken,
-		},
-	)
-	if err3 != nil {
-		log.Printf("[FB-ENRICH] %s daily_spend_limit 不可用: %v", adAccountID, err3)
-	} else if v, ok := resp3["daily_spend_limit"]; ok {
-		base.DailySpendLimit = toFloat64(v)
-		log.Printf("[FB-ENRICH] %s daily_spend_limit=%v", adAccountID, v)
+	// 注意：daily_spend_limit 字段已在 Graph API v22 移除（实测返回 #100 nonexisting field），
+	// 不再单独发请求探测，DailySpendLimit 保持 0，前端显示「无限制」
+	// 所有者角色由列表请求的 user_tasks 字段解析（见 parseAdAccountDetail），禁用账户也可靠
+
+	// 第三批：管理员列表兜底
+	// 禁用账户的内联 users{name} 会被 FB 剥离，导致管理员数为 0；
+	// BM 账户走 assigned_users 边（必须带 business 参数），个人账户走 /users 边
+	usersURL := fmt.Sprintf("/%s/%s/users", s.graphVer, adAccountID)
+	usersParams := map[string]string{
+		"fields":       "id,name,tasks",
+		"access_token": accessToken,
+	}
+	if base.BusinessName != "" && base.OwnerBusinessID != "" {
+		usersURL = fmt.Sprintf("/%s/%s/assigned_users", s.graphVer, adAccountID)
+		usersParams["business"] = base.OwnerBusinessID
+	}
+	respU, errU := s.fbGet(usersURL, usersParams)
+	if errU != nil {
+		log.Printf("[FB-ENRICH] %s 用户列表获取失败: %v", adAccountID, errU)
+	} else if data, ok := respU["data"].([]interface{}); ok && len(data) > 0 {
+		names := []string{}
+		for _, item := range data {
+			if u, ok := item.(map[string]interface{}); ok {
+				names = append(names, getString(u, "name"))
+			}
+		}
+		if len(names) > 0 {
+			base.AdminName = names[0]
+			base.OtherAdminNames = names[1:]
+			base.HiddenAdmins = len(names) - 1
+		}
 	}
 
-	log.Printf("[FB-ENRICH] %s 完成: dailySpendLimit=%.2f, fundingSource=%s, disableReason=%d, nextBillDate=%s, countryCode=%s, isPersonal=%d",
-		adAccountID, base.DailySpendLimit, base.FundingSource, base.DisableReason, base.NextBillDate, base.CountryCode, base.IsPersonal)
+	log.Printf("[FB-ENRICH] %s 完成: fundingSource=%s, disableReason=%d, nextBillDate=%s, countryCode=%s, isPersonal=%d, ownerRole=%s, admin=%s(+%d)",
+		adAccountID, base.FundingSource, base.DisableReason, base.NextBillDate, base.CountryCode, base.IsPersonal, base.OwnerRole, base.AdminName, base.HiddenAdmins)
 	return base
+}
+
+// deriveRoleFromTasks 从 FB tasks 列表推导账户角色
+func deriveRoleFromTasks(tasksRaw interface{}) string {
+	tasks, ok := tasksRaw.([]interface{})
+	if !ok {
+		return ""
+	}
+	has := func(name string) bool {
+		for _, t := range tasks {
+			if s, ok := t.(string); ok && s == name {
+				return true
+			}
+		}
+		return false
+	}
+	switch {
+	case has("MANAGE"):
+		return "Admin"
+	case has("ADVERTISE"):
+		return "Advertiser"
+	case has("ANALYZE"):
+		return "Analyst"
+	}
+	return ""
 }
 
 // parseAdAccountDetail 解析单个广告账户的详细信息
@@ -1184,25 +1291,27 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 	}
 
 	// 获取金额相关字段
+	// 注意：Facebook Marketing API 的金额字段统一以「分」（货币单位的 1/100）返回字符串，
+	// 包括 USD/TWD/JPY 等所有货币，这里统一转换为元
 	amountSpent := 0.0
 	if v, ok := acc["amount_spent"]; ok {
-		amountSpent = toFloat64(v)
+		amountSpent = toFloat64(v) / 100
 	}
 
 	spendCap := 0.0
 	if v, ok := acc["spend_cap"]; ok {
-		spendCap = toFloat64(v)
+		spendCap = toFloat64(v) / 100
 	}
 
 	balance := 0.0
 	if v, ok := acc["balance"]; ok {
-		balance = toFloat64(v)
+		balance = toFloat64(v) / 100
 	}
 
-	// 日限额
+	// 日限额（v22 已移除该字段，保留解析兼容旧版本）
 	dailySpendLimit := 0.0
 	if v, ok := acc["daily_spend_limit"]; ok {
-		dailySpendLimit = toFloat64(v)
+		dailySpendLimit = toFloat64(v) / 100
 	}
 
 	// 支付方法
@@ -1234,6 +1343,15 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 	// 是否为个人广告账户
 	isPersonal := getInt(acc, "is_personal")
 
+	// 是否预付费账户（false=后付费）
+	isPrepay := 0
+	if v, ok := acc["is_prepay_account"].(bool); ok && v {
+		isPrepay = 1
+	}
+
+	// 授权用户在该账户的角色：user_tasks 直接挂在账户节点上（禁用账户也返回，比 /users 边可靠）
+	ownerRole := deriveRoleFromTasks(acc["user_tasks"])
+
 	return models.FbAdAccountDetail{
 		ID:                 getString(acc, "id"),
 		AccountID:          getString(acc, "account_id"),
@@ -1262,6 +1380,8 @@ func (s *FbService) parseAdAccountDetail(acc map[string]interface{}, fbUserID, f
 		DisableReasonLabel: disableReasonLabel,
 		NextBillDate:       nextBillDate,
 		CreatedTime:        createdTime,
+		IsPrepay:           isPrepay,
+		OwnerRole:          ownerRole,
 	}
 }
 
@@ -1404,86 +1524,98 @@ func (s *FbService) GetPaymentHistory(userID uint, tenantID *uint, adAccountID s
 		return nil, fmt.Errorf("未找到有效的 Facebook 授权: %w", err)
 	}
 
-	// 尝试不同的支付/账单端点
-	// /{ad_account_id}/transactions 可能在 v22 已弃用
-	// 改用 /{ad_account_id}/adspayments 或 .../billing
-	endpoints := []string{
-		fmt.Sprintf("/%s/%s/adspayments", s.graphVer, adAccountID),
-		fmt.Sprintf("/%s/%s/billing_transactions", s.graphVer, adAccountID),
-		fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
+	// 支付记录数据源：/{ad-account-id}/activities 边的账单类事件
+	// 依据 FB 官方 AdActivity 文档（v22）：旧的 /transactions、/adspayments 边均已移除，
+	// 账单事件（扣费/退款/退单/添加支付方式）通过 activities 边的 event_type 暴露
+	billingEvents := map[string]struct{ Label, Status string }{
+		"ad_account_billing_charge":              {"扣费", "已支付"},
+		"ad_account_billing_charge_failed":       {"扣费", "失败"},
+		"ad_account_billing_decline":             {"扣费", "失败"},
+		"ad_account_billing_refund":              {"退款", "已退款"},
+		"ad_account_billing_chargeback":          {"退单", "退单"},
+		"ad_account_billing_chargeback_reversal": {"退单撤销", "已撤销"},
+		"funding_event_initiated":                {"发起添加支付方式", "处理中"},
+		"funding_event_successful":               {"添加支付方式", "成功"},
 	}
 
-	var resp map[string]interface{}
-	var usedEndpoint string
-	var lastErr error
-
-	for _, ep := range endpoints {
-		var e error
-		if ep == endpoints[2] {
-			// 第三个直接查账户本身的 billing 字段
-			resp, e = s.fbGet(ep, map[string]string{
-				"fields":       "balance,amount_spent,spend_cap,currency",
-				"access_token": accessToken,
-			})
-		} else {
-			resp, e = s.fbGet(ep, map[string]string{
-				"fields":       "id,time,description,amount,currency,status",
-				"access_token": accessToken,
-				"limit":        "50",
-			})
+	// activities 边官方文档明确「没有任何参数」，不支持事件类型过滤，只能分页拉取后本地过滤
+	// 实测 since 参数（未文档化）有效：不带时默认只返回最近几天，带 since=一年前 可拉满 FB 保留的全部历史
+	// 游标分页直至最后一页，上限 10 页（约 5000 条事件），防止异常账户历史过长拖垮限速器
+	since := time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+	records := []models.FbPaymentRecord{}
+	after := ""
+	for page := 0; page < 10; page++ {
+		params := map[string]string{
+			"fields":       "event_type,event_time,extra_data",
+			"access_token": accessToken,
+			"limit":        "500",
+			"since":        since,
 		}
-		if e == nil {
-			usedEndpoint = ep
-			lastErr = nil
+		if after != "" {
+			params["after"] = after
+		}
+
+		resp, err := s.fbGet(fmt.Sprintf("/%s/%s/activities", s.graphVer, adAccountID), params)
+		if err != nil {
+			if page == 0 {
+				return nil, fmt.Errorf("获取支付记录失败: %w", err)
+			}
+			log.Printf("[FB-PAY] %s 第%d页失败，返回已获取的%d条: %v", adAccountID, page+1, len(records), err)
 			break
 		}
-		log.Printf("[FB-PAY] 端点 %s 失败: %v", ep, e)
-		lastErr = e
-	}
 
-	if lastErr != nil {
-		return nil, fmt.Errorf("获取支付记录失败 (试了%d个端点): %w", len(endpoints), lastErr)
-	}
+		if data, ok := resp["data"].([]interface{}); ok {
+			for _, item := range data {
+				ev, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				meta, isBilling := billingEvents[getString(ev, "event_type")]
+				if !isBilling {
+					continue
+				}
 
-	log.Printf("[FB-PAY] 成功使用端点: %s, 响应: %v", usedEndpoint, resp)
+				// extra_data 是 JSON 字符串：{"currency":"USD","new_value":3090(单位为分),"transaction_id":"..."}
+				amount := 0.0
+				currency := ""
+				txID := ""
+				if raw := getString(ev, "extra_data"); raw != "" {
+					var extra map[string]interface{}
+					if json.Unmarshal([]byte(raw), &extra) == nil {
+						amount = toFloat64(extra["new_value"]) / 100 // FB 金额以分返回
+						currency = getString(extra, "currency")
+						txID = getString(extra, "transaction_id")
+					}
+				}
 
-	// 如果是账户详情端点，构造单条摘要记录
-	if usedEndpoint == endpoints[2] {
-		records := []models.FbPaymentRecord{{
-			Description: "账户摘要",
-			Amount:      toFloat64(resp["balance"]),
-			Currency:    getString(resp, "currency"),
-			Status:      "summary",
-		}}
-		if records == nil {
-			records = []models.FbPaymentRecord{}
-		}
-		return &models.FbPaymentListResponse{Records: records, Total: len(records)}, nil
-	}
-
-	// 解析交易列表
-	var records []models.FbPaymentRecord
-	if data, ok := resp["data"].([]interface{}); ok {
-		for _, item := range data {
-			if t, ok := item.(map[string]interface{}); ok {
 				records = append(records, models.FbPaymentRecord{
-					ID:          getString(t, "id"),
-					AccountID:   getString(t, "account_id"),
-					Time:        getString(t, "time"),
-					Description: getString(t, "description"),
-					Amount:      toFloat64(t["amount"]),
-					Currency:    getString(t, "currency"),
-					BillingStart: "",
-					BillingEnd:   "",
-					Status:      getString(t, "status"),
-					PaymentMethod: "",
+					ID:          txID,
+					AccountID:   adAccountID,
+					Time:        getString(ev, "event_time"),
+					Description: meta.Label,
+					Amount:      amount,
+					Currency:    currency,
+					Status:      meta.Status,
 				})
 			}
 		}
-	}
 
-	if records == nil {
-		records = []models.FbPaymentRecord{}
+		// 翻页：有 next 且有 after 游标才继续
+		paging, ok := resp["paging"].(map[string]interface{})
+		if !ok {
+			break
+		}
+		if _, hasNext := paging["next"]; !hasNext {
+			break
+		}
+		nextAfter := ""
+		if cursors, ok := paging["cursors"].(map[string]interface{}); ok {
+			nextAfter = getString(cursors, "after")
+		}
+		if nextAfter == "" {
+			break
+		}
+		after = nextAfter
 	}
 
 	return &models.FbPaymentListResponse{
@@ -1549,15 +1681,82 @@ func (s *FbService) AssignAdAccountUser(userID uint, tenantID *uint, req *models
 		Total:   len(req.AdAccountIDs),
 	}
 
-	for _, adAccountID := range req.AdAccountIDs {
-		_, err := s.fbPost(
-			fmt.Sprintf("/%s/%s/users", s.graphVer, adAccountID),
+	// Facebook 广告账户 /users 边要求 role 为数字：
+	// 1001=ADMIN（管理员）1002=ADVERTISER（广告管理员）1003=ANALYST（分析员）
+	fbRoleNum := map[string]string{
+		"ADMIN":      "1001",
+		"ADVERTISER": "1002",
+		"ANALYST":    "1003",
+	}[req.Role]
+	if fbRoleNum == "" {
+		fbRoleNum = "1002"
+	}
+
+	// BM 账户 assigned_users 边使用 tasks 数组而不是数字 role
+	fbTasks := map[string]string{
+		"ADMIN":      `["MANAGE","ADVERTISE","ANALYZE"]`,
+		"ADVERTISER": `["ADVERTISE","ANALYZE"]`,
+		"ANALYST":    `["ANALYZE"]`,
+	}[req.Role]
+	if fbTasks == "" {
+		fbTasks = `["ADVERTISE","ANALYZE"]`
+	}
+
+	// /users 边要求数字 UID：用户名（如 adamjumaa.adamjumaa）先解析为数字 ID
+	fbUserID := req.UserID
+	if !isNumericUID(fbUserID) {
+		userResp, resolveErr := s.fbGet(
+			fmt.Sprintf("/%s/%s", s.graphVer, fbUserID),
 			map[string]string{
-				"user":         req.UserID,
-				"role":         req.Role,
+				"fields":       "id",
 				"access_token": token.AccessToken,
 			},
 		)
+		if resolveErr == nil {
+			if id := getString(userResp, "id"); id != "" {
+				fbUserID = id
+			}
+		}
+	}
+
+	for _, adAccountID := range req.AdAccountIDs {
+		// 判断账户归属：BM 名下账户必须走 assigned_users 边（带 business 参数 + tasks），
+		// 个人账户走 /users 边（数字 role）
+		businessID := ""
+		accResp, accErr := s.fbGet(
+			fmt.Sprintf("/%s/%s", s.graphVer, adAccountID),
+			map[string]string{
+				"fields":       "business",
+				"access_token": token.AccessToken,
+			},
+		)
+		if accErr == nil {
+			if biz, ok := accResp["business"].(map[string]interface{}); ok {
+				businessID = getString(biz, "id")
+			}
+		}
+
+		var err error
+		if businessID != "" {
+			_, err = s.fbPost(
+				fmt.Sprintf("/%s/%s/assigned_users", s.graphVer, adAccountID),
+				map[string]string{
+					"user":         fbUserID,
+					"tasks":        fbTasks,
+					"business":     businessID,
+					"access_token": token.AccessToken,
+				},
+			)
+		} else {
+			_, err = s.fbPost(
+				fmt.Sprintf("/%s/%s/users", s.graphVer, adAccountID),
+				map[string]string{
+					"user":         fbUserID,
+					"role":         fbRoleNum,
+					"access_token": token.AccessToken,
+				},
+			)
+		}
 
 		result := models.FbAssignUserResult{
 			AdAccountID: adAccountID,
@@ -1889,4 +2088,354 @@ func (s *FbService) getCurrentFbUserID(accessToken string) string {
 		return ""
 	}
 	return getString(resp, "id")
+}
+
+// ==================== BM（Business Manager）列表 ====================
+
+// countBmEdge 统计某个 BM 边的条目数（单次 limit=500，够用；失败返回 0）
+func (s *FbService) countBmEdge(bmID, edge, accessToken string) int {
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/%s", s.graphVer, bmID, edge),
+		map[string]string{
+			"fields":       "id",
+			"access_token": accessToken,
+			"limit":        "500",
+		},
+	)
+	if err != nil {
+		log.Printf("[FB-BM] 获取边 %s/%s 失败: %v", bmID, edge, err)
+		return 0
+	}
+	if data, ok := resp["data"].([]interface{}); ok {
+		return len(data)
+	}
+	return 0
+}
+
+// GetBmList 从 FB API 获取所有已授权账号下的 BM 列表（供后台刷新任务调用，勿在请求链路同步调用）
+// 字段来源均为官方公开 API（已实测）：
+//
+//	me/businesses?fields=id,name,created_time,verification_status
+//	/{bm-id}/business_users?fields=id,name,role   — 管理员数 / 授权用户角色
+//	owned_ad_accounts + client_ad_accounts        — 广告账户数
+//	owned_businesses + agencies                   — 合作伙伴数
+func (s *FbService) GetBmList(userID uint, tenantID *uint) (*models.FbBmListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	s.init()
+
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id, fb_user_id, fb_user_name, access_token
+		 FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询 FB token 失败: %w", err)
+	}
+	defer rows.Close()
+
+	var allBms []models.FbBmListItem
+
+	for rows.Next() {
+		var (
+			tokenID     uint
+			fbUserID    string
+			fbUserName  string
+			accessToken string
+		)
+		if err := rows.Scan(&tokenID, &fbUserID, &fbUserName, &accessToken); err != nil {
+			log.Printf("[FB-BM] 扫描 token 行失败: %v", err)
+			continue
+		}
+
+		bmResp, err := s.fbGet(
+			fmt.Sprintf("/%s/me/businesses", s.graphVer),
+			map[string]string{
+				// permitted_roles：当前授权用户在该 BM 中的角色（如 ["ADMIN"]），官方字段，实测可用
+				"fields":       "id,name,created_time,verification_status,permitted_roles",
+				"access_token": accessToken,
+				"limit":        "100",
+			},
+		)
+		if err != nil {
+			log.Printf("[FB-BM] 获取BM列表失败 (fbUserId=%s): %v", fbUserID, err)
+			continue
+		}
+
+		data, _ := bmResp["data"].([]interface{})
+		for _, item := range data {
+			bm, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			bmID := getString(bm, "id")
+			if bmID == "" {
+				continue
+			}
+
+			bmItem := models.FbBmListItem{
+				BmID:               bmID,
+				Name:               getString(bm, "name"),
+				FbOwnerName:        fbUserName,
+				FbOwnerID:          fbUserID,
+				StatusLabel:        "正常", // API 可达即正常；官方无 BM 状态字段
+				VerificationStatus: getString(bm, "verification_status"),
+				CreatedTime:        getString(bm, "created_time"),
+				TokenID:            tokenID,
+			}
+
+			// 授权用户角色：permitted_roles（["DEVELOPER","ADMIN"]），取 ADMIN > EMPLOYEE > 其他
+			if roles, ok := bm["permitted_roles"].([]interface{}); ok {
+				var roleStrs []string
+				for _, r := range roles {
+					if rs, ok := r.(string); ok {
+						roleStrs = append(roleStrs, rs)
+					}
+				}
+				for _, want := range []string{"ADMIN", "EMPLOYEE"} {
+					for _, rs := range roleStrs {
+						if rs == want {
+							bmItem.OwnerRole = rs
+							break
+						}
+					}
+					if bmItem.OwnerRole != "" {
+						break
+					}
+				}
+				if bmItem.OwnerRole == "" && len(roleStrs) > 0 {
+					bmItem.OwnerRole = roleStrs[0]
+				}
+			}
+
+			// business_users → 管理员总数（summary=total_count）+ 可见名单
+			// 注意：灰号/企业账号用户在 data 里不可枚举，但 summary.total_count 是真实总数
+			usersResp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/business_users", s.graphVer, bmID),
+				map[string]string{
+					"fields":       "id,name,role",
+					"access_token": accessToken,
+					"limit":        "100",
+				},
+			)
+			if err == nil {
+				if users, ok := usersResp["data"].([]interface{}); ok {
+					for _, u := range users {
+						user, ok := u.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						uName := getString(user, "name")
+						uRole := getString(user, "role")
+						if uRole == "ADMIN" {
+							bmItem.AdminNames = append(bmItem.AdminNames, uName)
+						}
+					}
+				}
+			} else {
+				log.Printf("[FB-BM] 获取 business_users 失败 (bm=%s): %v", bmID, err)
+			}
+
+			// summary=total_count 取管理员真实总数（含不可枚举的用户）
+			summaryResp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/business_users", s.graphVer, bmID),
+				map[string]string{
+					"access_token": accessToken,
+					"summary":      "total_count",
+					"limit":        "0",
+				},
+			)
+			if err == nil {
+				if summary, ok := summaryResp["summary"].(map[string]interface{}); ok {
+					bmItem.AdminCount = getInt(summary, "total_count")
+				}
+			}
+			if bmItem.AdminCount == 0 {
+				bmItem.AdminCount = len(bmItem.AdminNames)
+			}
+
+			// pending_users → 邀请中的管理员（已发出邀请未接受；无 name 字段）
+			pendingResp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/pending_users", s.graphVer, bmID),
+				map[string]string{
+					"fields":       "id,role",
+					"access_token": accessToken,
+					"limit":        "100",
+				},
+			)
+			if err == nil {
+				if pending, ok := pendingResp["data"].([]interface{}); ok {
+					for _, u := range pending {
+						user, ok := u.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						if getString(user, "role") == "ADMIN" {
+							bmItem.PendingAdminCount++
+						}
+					}
+				}
+			} else {
+				log.Printf("[FB-BM] 获取 pending_users 失败 (bm=%s): %v", bmID, err)
+			}
+
+			// 广告账户数 = 自有 + 客户
+			bmItem.AdAccountCount = s.countBmEdge(bmID, "owned_ad_accounts", accessToken) +
+				s.countBmEdge(bmID, "client_ad_accounts", accessToken)
+
+			// 合作伙伴数 = 子BM + 代理商
+			bmItem.PartnerCount = s.countBmEdge(bmID, "owned_businesses", accessToken) +
+				s.countBmEdge(bmID, "agencies", accessToken)
+
+			allBms = append(allBms, bmItem)
+		}
+	}
+
+	if allBms == nil {
+		allBms = []models.FbBmListItem{}
+	}
+
+	return &models.FbBmListResponse{
+		List:  allBms,
+		Total: len(allBms),
+	}, nil
+}
+
+// ==================== FB 公共主页 ====================
+
+// GetPageList 获取所有已授权 FB 账号下的公共主页列表
+func (s *FbService) GetPageList(userID uint, tenantID *uint) (*models.FbPageListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	s.init()
+
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id, fb_user_id, fb_user_name, access_token
+		 FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询 FB token 失败: %w", err)
+	}
+	defer rows.Close()
+
+	var allPages []models.FbPageItem
+
+	for rows.Next() {
+		var (
+			tokenID     uint
+			fbUserID    string
+			fbUserName  string
+			accessToken string
+		)
+		if err := rows.Scan(&tokenID, &fbUserID, &fbUserName, &accessToken); err != nil {
+			log.Printf("[FB-PAGE] 扫描 token 行失败: %v", err)
+			continue
+		}
+
+		pageResp, err := s.fbGet(
+			fmt.Sprintf("/%s/me/accounts", s.graphVer),
+			map[string]string{
+				"fields": "id,name,link,category,fan_count,followers_count,is_published," +
+					"verification_status,website,phone,emails,location",
+				"access_token": accessToken,
+				"limit":        "100",
+			},
+		)
+		if err != nil {
+			log.Printf("[FB-PAGE] 获取主页列表失败 (fbUserId=%s): %v", fbUserID, err)
+			continue
+		}
+
+		data, _ := pageResp["data"].([]interface{})
+		for _, item := range data {
+			page, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			pageID := getString(page, "id")
+			if pageID == "" {
+				continue
+			}
+
+			pageItem := models.FbPageItem{
+				PageID:             pageID,
+				Name:               getString(page, "name"),
+				Link:               getString(page, "link"),
+				FbOwnerName:        fbUserName,
+				FbOwnerID:          fbUserID,
+				Category:           getString(page, "category"),
+				FanCount:           getInt(page, "fan_count"),
+				FollowersCount:     getInt(page, "followers_count"),
+				VerificationStatus: getString(page, "verification_status"),
+				Website:            getString(page, "website"),
+				Phone:              getString(page, "phone"),
+				TokenID:            tokenID,
+			}
+
+			if v, ok := page["is_published"].(bool); ok && !v {
+				pageItem.IsPublished = 0
+			}
+
+			// emails 为数组，取第一个
+			if emails, ok := page["emails"].([]interface{}); ok && len(emails) > 0 {
+				if e, ok := emails[0].(string); ok {
+					pageItem.Email = e
+				}
+			}
+
+			// location 拼成单行地址
+			if loc, ok := page["location"].(map[string]interface{}); ok {
+				parts := []string{}
+				for _, k := range []string{"street", "city", "state", "country"} {
+					if v := getString(loc, k); v != "" {
+						parts = append(parts, v)
+					}
+				}
+				pageItem.Address = strings.Join(parts, ", ")
+			}
+
+			// 管理员名单：/roles 边（需 pages 相关权限），失败容忍
+			rolesResp, rolesErr := s.fbGet(
+				fmt.Sprintf("/%s/%s/roles", s.graphVer, pageID),
+				map[string]string{
+					"fields":       "name,role",
+					"access_token": accessToken,
+					"limit":        "100",
+				},
+			)
+			if rolesErr == nil {
+				if rolesData, ok := rolesResp["data"].([]interface{}); ok {
+					for _, r := range rolesData {
+						if ru, ok := r.(map[string]interface{}); ok {
+							if n := getString(ru, "name"); n != "" {
+								pageItem.AdminNames = append(pageItem.AdminNames, n)
+							}
+						}
+					}
+				}
+			} else {
+				log.Printf("[FB-PAGE] 获取主页管理员失败 (page=%s): %v", pageID, rolesErr)
+			}
+
+			allPages = append(allPages, pageItem)
+		}
+	}
+
+	if allPages == nil {
+		allPages = []models.FbPageItem{}
+	}
+
+	return &models.FbPageListResponse{
+		List:  allPages,
+		Total: len(allPages),
+	}, nil
 }
