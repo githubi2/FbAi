@@ -123,6 +123,13 @@ export function fetchFbRefreshStats(id: number) {
   })
 }
 
+/** 触发后台刷新所有 FB 账号统计（5分钟冷却期内为 no-op，幂等） */
+export function fetchFbRefreshAccounts() {
+  return request.post<{ started: boolean }>({
+    url: '/api/v1/fb/accounts/refresh-all'
+  })
+}
+
 // ==================== 广告账户管理 ====================
 
 /** 广告账户详细信息（管理页面用） */
@@ -154,6 +161,12 @@ export interface FbAdAccountDetail {
   disableReasonLabel: string
   nextBillDate: string
   createdTime: string
+  /** 是否预付费账户（1=预付费, 0=后付费） */
+  isPrepay: number
+  /** 授权用户在该账户的角色（Admin/Advertiser/Analyst） */
+  ownerRole: string
+  /** 本地备注 */
+  remark: string
 }
 
 /** 广告账户详细列表响应 */
@@ -167,6 +180,21 @@ export function fetchFbAdAccountsDetail() {
   return request.get<FbAdAccountDetailListResponse>({
     url: '/api/v1/fb/ad-accounts/detail',
     showErrorMessage: true
+  })
+}
+
+/** 触发后台刷新广告账户详情（5分钟冷却期内为 no-op，幂等） */
+export function fetchFbRefreshAdAccounts() {
+  return request.post<{ started: boolean }>({
+    url: '/api/v1/fb/ad-accounts/refresh-all'
+  })
+}
+
+/** 更新广告账户本地备注 */
+export function fetchFbUpdateAdAccountRemark(adAccountId: string, remark: string) {
+  return request.put<{ remark: string }>({
+    url: `/api/v1/fb/ad-accounts/${adAccountId}/remark`,
+    data: { remark }
   })
 }
 
@@ -271,5 +299,154 @@ export function fetchRemoveAdAccountUser(params: FbRemoveUserParams) {
     url: '/api/v1/fb/ad-accounts/remove-user',
     data: params,
     showErrorMessage: true
+  })
+}
+
+// ==================== 刷新状态 ====================
+
+/** 刷新状态响应 */
+export interface FbRefreshStatusResponse {
+  status: string // pending/running/completed/failed/none
+  isRunning: boolean
+  error: string
+}
+
+/** 获取刷新状态 */
+export function fetchRefreshStatus(
+  type: 'accounts' | 'ad_accounts' | 'bm' | 'pages' | 'all' = 'all'
+) {
+  return request.get<FbRefreshStatusResponse>({
+    url: '/api/v1/fb/refresh-status',
+    params: { type },
+    showErrorMessage: false
+  })
+}
+
+// ==================== BM 列表 ====================
+
+/**
+ * BM 列表项
+ * 官方公开 API 不提供：BM类型、日限额、隐藏管理员、BM质量（前端显示 —）
+ */
+export interface FbBmItem {
+  bmId: string
+  name: string
+  fbOwnerName: string
+  fbOwnerId: string
+  /** 状态：API 可达即为「正常」 */
+  statusLabel: string
+  /** 本地推送状态 */
+  pushStatus: string
+  /** 本地备注 */
+  remark: string
+  /** 授权用户在 BM 中的角色（ADMIN/EMPLOYEE） */
+  ownerRole: string
+  /** 认证状态（verified/not_verified/...） */
+  verificationStatus: string
+  /** 管理员总数 = 在职 + 邀请中 */
+  adminCount: number
+  /** 邀请中管理员数 */
+  pendingAdminCount: number
+  /** 在职管理员名单 */
+  adminNames: string[]
+  /** 合作伙伴数（owned_businesses + agencies） */
+  partnerCount: number
+  /** 广告账户数（owned + client） */
+  adAccountCount: number
+  createdTime: string
+  lastRefreshAt: string | null
+}
+
+/** BM 列表响应 */
+export interface FbBmListResponse {
+  list: FbBmItem[]
+  total: number
+}
+
+/** 获取 BM 列表（后端缓存直出，毫秒级） */
+export function fetchFbBmList() {
+  return request.get<FbBmListResponse>({
+    url: '/api/v1/fb/bm-list',
+    showErrorMessage: true
+  })
+}
+
+/** 触发后台刷新 BM 列表（5分钟冷却期内为 no-op，幂等） */
+export function fetchFbRefreshBmList() {
+  return request.post<{ started: boolean }>({
+    url: '/api/v1/fb/bm-list/refresh'
+  })
+}
+
+/** 更新 BM 本地备注 */
+export function fetchFbUpdateBmRemark(bmId: string, remark: string) {
+  return request.put<{ remark: string }>({
+    url: `/api/v1/fb/bm-list/${bmId}/remark`,
+    data: { remark }
+  })
+}
+
+// ==================== FB 公共主页 ====================
+
+/**
+ * 公共主页列表项
+ * FB 官方 API 不提供：创建时间、创建渠道、主页状态、申诉时间、允许评论、
+ * 隐藏不文明用语、广告权限、屏蔽词设置、黑名单列表、主页类型（前端显示 —）
+ */
+export interface FbPageItem {
+  pageId: string
+  name: string
+  link: string
+  fbOwnerName: string
+  fbOwnerId: string
+  /** 主页分类 */
+  category: string
+  /** 点赞数 */
+  fanCount: number
+  /** 粉丝数 */
+  followersCount: number
+  /** 发布状态 1=已发布 0=未发布 */
+  isPublished: number
+  /** 认证状态（verified/not_verified/...） */
+  verificationStatus: string
+  website: string
+  phone: string
+  email: string
+  address: string
+  /** 管理员名单 */
+  adminNames: string[]
+  /** 本地推送状态 */
+  pushStatus: string
+  /** 本地备注 */
+  remark: string
+  lastRefreshAt: string | null
+}
+
+/** 公共主页列表响应 */
+export interface FbPageListResponse {
+  list: FbPageItem[]
+  total: number
+}
+
+/** 获取公共主页列表（后端缓存直出，毫秒级） */
+export function fetchFbPages() {
+  return request.get<FbPageListResponse>({
+    url: '/api/v1/fb/pages',
+    showErrorMessage: true
+  })
+}
+
+/** 触发后台刷新主页列表（5分钟冷却期内为 no-op，幂等） */
+export function fetchFbRefreshPages() {
+  return request.post<{ started: boolean }>({
+    url: '/api/v1/fb/pages/refresh-all'
+  })
+}
+
+/** 更新主页本地备注 */
+export function fetchFbUpdatePageRemark(pageId: string, remark: string) {
+  return request.put<{ remark: string }>({
+    url: `/api/v1/fb/pages/${pageId}/remark`,
+    data: { remark }
   })
 }

@@ -117,7 +117,15 @@ func SetupRouter() *gin.Engine {
 				fb.GET("/status", handlers.DefaultFbHandler.ConnectionStatus)
 				fb.GET("/ad-accounts", handlers.DefaultFbHandler.AdAccounts)
 				fb.GET("/ad-accounts/detail", handlers.DefaultFbHandler.AdAccountsDetail)
+				fb.POST("/ad-accounts/refresh-all", handlers.DefaultFbHandler.RefreshAllAdAccounts)
 				fb.GET("/ad-accounts/:id/payments", handlers.DefaultFbHandler.PaymentHistory)
+				fb.PUT("/ad-accounts/:id/remark", handlers.DefaultFbHandler.UpdateAdAccountRemark)
+				fb.GET("/bm-list", handlers.DefaultFbHandler.BmList)
+				fb.POST("/bm-list/refresh", handlers.DefaultFbHandler.RefreshAllBms)
+				fb.PUT("/bm-list/:id/remark", handlers.DefaultFbHandler.UpdateBmRemark)
+				fb.GET("/pages", handlers.DefaultFbHandler.PageList)
+				fb.POST("/pages/refresh-all", handlers.DefaultFbHandler.RefreshAllPages)
+				fb.PUT("/pages/:id/remark", handlers.DefaultFbHandler.UpdatePageRemark)
 				fb.POST("/ad-accounts/assign-user", handlers.DefaultFbHandler.AssignUser)
 				fb.POST("/ad-accounts/remove-user", handlers.DefaultFbHandler.RemoveUser)
 				fb.POST("/users/lookup", handlers.DefaultFbHandler.LookupUsers)
@@ -127,10 +135,14 @@ func SetupRouter() *gin.Engine {
 				fbAccounts := fb.Group("/accounts")
 				{
 					fbAccounts.GET("", handlers.DefaultFbHandler.ListAccounts)
+					fbAccounts.POST("/refresh-all", handlers.DefaultFbHandler.RefreshAllAccounts)
 					fbAccounts.DELETE("/:id", handlers.DefaultFbHandler.Disconnect)
 					fbAccounts.PUT("/:id/label", handlers.DefaultFbHandler.UpdateLabel)
 					fbAccounts.POST("/:id/refresh", handlers.DefaultFbHandler.RefreshStats)
 				}
+
+				// 刷新状态查询
+				fb.GET("/refresh-status", handlers.DefaultFbHandler.RefreshStatus)
 			}
 		}
 	}

@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/githubi2/FbAi/art-design-server/db"
 	"github.com/githubi2/FbAi/art-design-server/models"
 	"github.com/githubi2/FbAi/art-design-server/services"
 )
@@ -114,6 +117,10 @@ func (h *FbHandler) Callback(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, "保存 token 失败: "+err.Error()))
 		return
 	}
+
+	// 后台异步刷新该用户的 FB 账号统计（BM/广告账户数量等），不阻塞授权结果页
+	// 前端列表页轮询 refresh-status，完成后自动重载即可看到最新数据
+	go h.refreshAccountsCache(uint(userID), tenantID)
 
 	// 回调成功，返回 HTML 成功页面（不重定向到前端，因为用户可能在不同浏览器授权）
 	// 样式与后台 ArtResultPage 结果页保持一致
@@ -416,6 +423,7 @@ func (h *FbHandler) DataDeletion(c *gin.Context) {
 // ==================== 多账号改造 — 新增 handler ====================
 
 // ListAccounts GET /api/v1/fb/accounts — 获取用户所有已授权 FB 账号列表
+// 重构后：纯读接口，无任何副作用。后台刷新由 POST /accounts/refresh-all 显式触发
 func (h *FbHandler) ListAccounts(c *gin.Context) {
 	userID := c.GetUint("userID")
 	if userID == 0 {
@@ -424,13 +432,112 @@ func (h *FbHandler) ListAccounts(c *gin.Context) {
 	}
 
 	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	// 1. 缓存直出（毫秒级）
+	cached, _ := cacheService.GetCachedAccounts(userID, tenantID)
+	if cached != nil && len(cached.Accounts) > 0 {
+		c.JSON(http.StatusOK, models.Success(cached))
+		return
+	}
+
+	// 2. 无缓存：读 fb_tokens 表（纯 DB 查询，不调 FB API），异步写入缓存
 	result, err := services.DefaultFbService.ListAccounts(userID, tenantID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
 		return
 	}
 
+	go h.saveAccountsToCache(userID, tenantID, result)
+
 	c.JSON(http.StatusOK, models.Success(result))
+}
+
+// RefreshAllAccounts POST /api/v1/fb/accounts/refresh-all — 显式触发后台刷新所有 FB 账号统计
+// 5 分钟冷却期内为 no-op；幂等，重复调用安全
+func (h *FbHandler) RefreshAllAccounts(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	started := false
+	switch {
+	case cacheService.IsRefreshing(userID, tenantID, "accounts"):
+		// 已在刷新中
+	case cacheService.ShouldRefresh(userID, tenantID, "accounts", 5*time.Minute):
+		go h.refreshAccountsCache(userID, tenantID)
+		started = true
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"started": started}))
+}
+
+// refreshAccountsCache 异步刷新FB账号缓存
+// 流程：逐个 token 调 FB Graph API 更新统计（走限速队列）→ 重读 fb_tokens → 写入缓存表
+func (h *FbHandler) refreshAccountsCache(userID uint, tenantID *uint) {
+	cacheService := services.DefaultFbCacheService
+
+	// 检查是否正在刷新
+	if cacheService.IsRefreshing(userID, tenantID, "accounts") {
+		return
+	}
+
+	// 创建刷新任务
+	refreshID, err := cacheService.StartRefresh(userID, tenantID, "accounts")
+	if err != nil {
+		log.Printf("[FB-HANDLER] 创建刷新任务失败: %v", err)
+		return
+	}
+
+	// 1. 查询所有有效 token，逐个从 FB API 刷新统计（结果回写 fb_tokens 的 bm_list/ad_accounts）
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id FROM fb_tokens WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		cacheService.CompleteRefresh(refreshID, err.Error())
+		return
+	}
+	var tokenIDs []uint
+	for rows.Next() {
+		var id uint
+		if err := rows.Scan(&id); err == nil {
+			tokenIDs = append(tokenIDs, id)
+		}
+	}
+	rows.Close()
+
+	for _, tokenID := range tokenIDs {
+		// 单个账号失败不影响其他账号（错误已写入 last_error，状态显示"异常"）
+		_ = services.DefaultFbService.RefreshAccountStats(tokenID, userID, tenantID)
+	}
+
+	// 2. 重新从 fb_tokens 读取最新统计
+	result, err := services.DefaultFbService.ListAccounts(userID, tenantID)
+	if err != nil {
+		cacheService.CompleteRefresh(refreshID, err.Error())
+		return
+	}
+
+	// 3. 写入缓存表
+	if err := cacheService.SaveAccountsCache(userID, tenantID, result.Accounts); err != nil {
+		log.Printf("[FB-HANDLER] 保存账号缓存失败: %v", err)
+	}
+
+	cacheService.CompleteRefresh(refreshID, "")
+}
+
+// saveAccountsToCache 保存账号数据到缓存
+func (h *FbHandler) saveAccountsToCache(userID uint, tenantID *uint, result *models.FbAccountListResponse) {
+	if err := services.DefaultFbCacheService.SaveAccountsCache(userID, tenantID, result.Accounts); err != nil {
+		log.Printf("[FB-HANDLER] 保存账号缓存失败: %v", err)
+	}
 }
 
 // UpdateLabel PUT /api/v1/fb/accounts/:id/label — 更新 FB 账号备注
@@ -484,6 +591,11 @@ func (h *FbHandler) RefreshStats(c *gin.Context) {
 		return
 	}
 
+	// 同步更新缓存表，列表页立即展示最新统计（无需等后台刷新任务）
+	if result, err := services.DefaultFbService.ListAccounts(userID, tenantID); err == nil {
+		_ = services.DefaultFbCacheService.SaveAccountsCache(userID, tenantID, result.Accounts)
+	}
+
 	c.JSON(http.StatusOK, models.SuccessWithMsg("统计已刷新", nil))
 }
 
@@ -495,6 +607,7 @@ func parseUint(s string) (uint64, error) {
 // ==================== 广告账户管理 ====================
 
 // AdAccountsDetail GET /api/v1/fb/ad-accounts/detail — 获取所有已授权FB账号下的广告账户详细信息
+// 重构后：纯读接口，无任何副作用。后台刷新由 POST /ad-accounts/refresh-all 显式触发
 func (h *FbHandler) AdAccountsDetail(c *gin.Context) {
 	userID := c.GetUint("userID")
 	if userID == 0 {
@@ -503,13 +616,151 @@ func (h *FbHandler) AdAccountsDetail(c *gin.Context) {
 	}
 
 	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	// 1. 缓存直出（毫秒级）
+	cached, _ := cacheService.GetCachedAdAccounts(userID, tenantID)
+	if cached != nil && len(cached.Accounts) > 0 {
+		c.JSON(http.StatusOK, models.Success(cached))
+		return
+	}
+
+	// 2. 无缓存：返回空列表（前端触发刷新后轮询自动更新），绝不同步等待 FB API
+	c.JSON(http.StatusOK, models.Success(&models.FbAdAccountDetailListResponse{
+		Accounts: []models.FbAdAccountDetail{},
+		Total:    0,
+	}))
+}
+
+// RefreshAllAdAccounts POST /api/v1/fb/ad-accounts/refresh-all — 显式触发后台刷新广告账户详情
+// 5 分钟冷却期内为 no-op；幂等，重复调用安全
+func (h *FbHandler) RefreshAllAdAccounts(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	started := false
+	switch {
+	case cacheService.IsRefreshing(userID, tenantID, "ad_accounts"):
+		// 已在刷新中
+	case cacheService.ShouldRefresh(userID, tenantID, "ad_accounts", 5*time.Minute):
+		go h.refreshAdAccountsCache(userID, tenantID)
+		started = true
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"started": started}))
+}
+
+// refreshAdAccountsCache 异步刷新广告账户缓存
+func (h *FbHandler) refreshAdAccountsCache(userID uint, tenantID *uint) {
+	cacheService := services.DefaultFbCacheService
+
+	// 检查是否正在刷新
+	if cacheService.IsRefreshing(userID, tenantID, "ad_accounts") {
+		return
+	}
+
+	// 创建刷新任务
+	refreshID, err := cacheService.StartRefresh(userID, tenantID, "ad_accounts")
+	if err != nil {
+		log.Printf("[FB-HANDLER] 创建刷新任务失败: %v", err)
+		return
+	}
+
+	// 获取最新数据
 	result, err := services.DefaultFbService.GetAdAccountsDetail(userID, tenantID)
+	if err != nil {
+		cacheService.CompleteRefresh(refreshID, err.Error())
+		return
+	}
+
+	// 保存缓存
+	h.saveAdAccountsToCache(userID, tenantID, result)
+
+	cacheService.CompleteRefresh(refreshID, "")
+}
+
+// UpdateAdAccountRemark PUT /api/v1/fb/ad-accounts/:id/remark — 更新广告账户本地备注
+func (h *FbHandler) UpdateAdAccountRemark(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	adAccountID := c.Param("id") // act_xxx
+	if adAccountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少广告账户ID"))
+		return
+	}
+
+	var req struct {
+		Remark string `json:"remark" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "备注最长255字符"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	if err := services.DefaultFbCacheService.UpdateAdAccountRemark(userID, tenantID, adAccountID, req.Remark); err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"remark": req.Remark}))
+}
+
+// saveAdAccountsToCache 保存广告账户数据到缓存
+func (h *FbHandler) saveAdAccountsToCache(userID uint, tenantID *uint, result *models.FbAdAccountDetailListResponse) {
+	if err := services.DefaultFbCacheService.SaveAdAccountsCache(userID, tenantID, result.Accounts); err != nil {
+		log.Printf("[FB-HANDLER] 保存广告账户缓存失败: %v", err)
+	}
+}
+
+// RefreshStatus GET /api/v1/fb/refresh-status — 获取刷新状态
+func (h *FbHandler) RefreshStatus(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	refreshType := c.Query("type") // accounts / ad_accounts
+	if refreshType == "" {
+		refreshType = "all"
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	// 检查两种刷新状态
+	if refreshType == "all" {
+		accountsStatus, _ := cacheService.GetRefreshStatus(userID, tenantID, "accounts")
+		adAccountsStatus, _ := cacheService.GetRefreshStatus(userID, tenantID, "ad_accounts")
+
+		isRunning := (accountsStatus != nil && accountsStatus.IsRunning) ||
+			(adAccountsStatus != nil && adAccountsStatus.IsRunning)
+
+		c.JSON(http.StatusOK, models.Success(models.FbRefreshStatusResponse{
+			Status:    "running",
+			IsRunning: isRunning,
+		}))
+		return
+	}
+
+	status, err := cacheService.GetRefreshStatus(userID, tenantID, refreshType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, models.Success(result))
+	c.JSON(http.StatusOK, models.Success(status))
 }
 
 // PaymentHistory GET /api/v1/fb/ad-accounts/:id/payments — 获取广告账户支付记录
@@ -606,4 +857,221 @@ func (h *FbHandler) RemoveUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, models.Success(result))
+}
+
+// ==================== BM 列表 ====================
+
+// BmList GET /api/v1/fb/bm-list — 获取 BM 列表
+// 纯读接口：缓存直出（毫秒级），后台刷新由 POST /bm-list/refresh 显式触发
+func (h *FbHandler) BmList(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	cached, _ := cacheService.GetCachedBms(userID, tenantID)
+	if cached != nil && len(cached.List) > 0 {
+		c.JSON(http.StatusOK, models.Success(cached))
+		return
+	}
+
+	// 无缓存：返回空列表（前端触发刷新后轮询自动更新）
+	c.JSON(http.StatusOK, models.Success(&models.FbBmListResponse{
+		List:  []models.FbBmListItem{},
+		Total: 0,
+	}))
+}
+
+// RefreshAllBms POST /api/v1/fb/bm-list/refresh — 显式触发后台刷新 BM 列表
+// 5 分钟冷却期内为 no-op；幂等，重复调用安全
+func (h *FbHandler) RefreshAllBms(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	started := false
+	switch {
+	case cacheService.IsRefreshing(userID, tenantID, "bm"):
+		// 已在刷新中
+	case cacheService.ShouldRefresh(userID, tenantID, "bm", 5*time.Minute):
+		go h.refreshBmsCache(userID, tenantID)
+		started = true
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"started": started}))
+}
+
+// refreshBmsCache 异步刷新 BM 缓存
+func (h *FbHandler) refreshBmsCache(userID uint, tenantID *uint) {
+	cacheService := services.DefaultFbCacheService
+
+	if cacheService.IsRefreshing(userID, tenantID, "bm") {
+		return
+	}
+
+	refreshID, err := cacheService.StartRefresh(userID, tenantID, "bm")
+	if err != nil {
+		log.Printf("[FB-HANDLER] 创建BM刷新任务失败: %v", err)
+		return
+	}
+
+	result, err := services.DefaultFbService.GetBmList(userID, tenantID)
+	if err != nil {
+		cacheService.CompleteRefresh(refreshID, err.Error())
+		return
+	}
+
+	if err := cacheService.SaveBmsCache(userID, tenantID, result.List); err != nil {
+		log.Printf("[FB-HANDLER] 保存BM缓存失败: %v", err)
+	}
+
+	cacheService.CompleteRefresh(refreshID, "")
+}
+
+// UpdateBmRemark PUT /api/v1/fb/bm-list/:id/remark — 更新 BM 本地备注
+func (h *FbHandler) UpdateBmRemark(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	bmID := c.Param("id")
+	if bmID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少BM ID"))
+		return
+	}
+
+	var req struct {
+		Remark string `json:"remark" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "备注最长255字符"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	if err := services.DefaultFbCacheService.UpdateBmRemark(userID, tenantID, bmID, req.Remark); err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"remark": req.Remark}))
+}
+
+// ==================== FB 公共主页 ====================
+
+// PageList GET /api/v1/fb/pages — 获取公共主页列表（缓存直出）
+func (h *FbHandler) PageList(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	cached, _ := cacheService.GetCachedPages(userID, tenantID)
+	if cached != nil && len(cached.List) > 0 {
+		c.JSON(http.StatusOK, models.Success(cached))
+		return
+	}
+
+	// 无缓存：返回空列表（前端触发刷新后轮询自动更新）
+	c.JSON(http.StatusOK, models.Success(&models.FbPageListResponse{
+		List:  []models.FbPageItem{},
+		Total: 0,
+	}))
+}
+
+// RefreshAllPages POST /api/v1/fb/pages/refresh-all — 显式触发后台刷新主页列表
+// 5 分钟冷却期内为 no-op；幂等，重复调用安全
+func (h *FbHandler) RefreshAllPages(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	started := false
+	switch {
+	case cacheService.IsRefreshing(userID, tenantID, "pages"):
+		// 已在刷新中
+	case cacheService.ShouldRefresh(userID, tenantID, "pages", 5*time.Minute):
+		go h.refreshPagesCache(userID, tenantID)
+		started = true
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"started": started}))
+}
+
+// refreshPagesCache 异步刷新主页缓存
+func (h *FbHandler) refreshPagesCache(userID uint, tenantID *uint) {
+	cacheService := services.DefaultFbCacheService
+
+	if cacheService.IsRefreshing(userID, tenantID, "pages") {
+		return
+	}
+
+	refreshID, err := cacheService.StartRefresh(userID, tenantID, "pages")
+	if err != nil {
+		log.Printf("[FB-HANDLER] 创建主页刷新任务失败: %v", err)
+		return
+	}
+
+	result, err := services.DefaultFbService.GetPageList(userID, tenantID)
+	if err != nil {
+		cacheService.CompleteRefresh(refreshID, err.Error())
+		return
+	}
+
+	if err := cacheService.SavePagesCache(userID, tenantID, result.List); err != nil {
+		log.Printf("[FB-HANDLER] 保存主页缓存失败: %v", err)
+	}
+
+	cacheService.CompleteRefresh(refreshID, "")
+}
+
+// UpdatePageRemark PUT /api/v1/fb/pages/:id/remark — 更新主页本地备注
+func (h *FbHandler) UpdatePageRemark(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	pageID := c.Param("id")
+	if pageID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少主页ID"))
+		return
+	}
+
+	var req struct {
+		Remark string `json:"remark" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "备注最长255字符"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	if err := services.DefaultFbCacheService.UpdatePageRemark(userID, tenantID, pageID, req.Remark); err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"remark": req.Remark}))
 }
