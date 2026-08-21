@@ -205,7 +205,9 @@
       columnsFactory: () =>
         buildPageColumns({
           t,
-          onEditRemark: showEditRemark
+          // 惰性包装：columnsFactory 在 setup 阶段就会被立即调用，
+          // 直接引用下方声明的 showEditRemark 会触发 TDZ 错误
+          onEditRemark: (row) => showEditRemark(row)
         })
     }
   })
