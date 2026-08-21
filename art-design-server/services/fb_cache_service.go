@@ -718,6 +718,7 @@ func (s *FbCacheService) GetCachedPages(userID uint, tenantID *uint) (*models.Fb
 		`SELECT c.page_id, c.name, c.link, c.fb_owner_name, c.fb_owner_id,
 		        c.category, c.fan_count, c.followers_count, c.is_published, c.verification_status,
 		        c.website, c.phone, c.email, c.address, c.admin_names,
+		        c.bm_name, c.ad_perm, c.profanity_filter, c.blocked_count,
 		        c.push_status, c.remark, c.last_refresh_at
 		 FROM fb_pages_cache c
 		 JOIN fb_tokens t ON t.id = c.fb_token_id AND t.status = 1
@@ -741,6 +742,7 @@ func (s *FbCacheService) GetCachedPages(userID uint, tenantID *uint) (*models.Fb
 			&item.PageID, &item.Name, &item.Link, &item.FbOwnerName, &item.FbOwnerID,
 			&item.Category, &item.FanCount, &item.FollowersCount, &item.IsPublished, &item.VerificationStatus,
 			&item.Website, &item.Phone, &item.Email, &item.Address, &adminNamesStr,
+			&item.BusinessName, &item.AdPerm, &item.ProfanityFilter, &item.BlockedCount,
 			&item.PushStatus, &item.Remark, &item.LastRefreshAt,
 		); err != nil {
 			log.Printf("[FB-CACHE] 扫描主页缓存行失败: %v", err)
@@ -788,8 +790,9 @@ func (s *FbCacheService) SavePagesCache(userID uint, tenantID *uint, pages []mod
 				(user_id, tenant_id, fb_token_id, page_id, name, link,
 				 fb_owner_name, fb_owner_id, category, fan_count, followers_count,
 				 is_published, verification_status, website, phone, email, address,
-				 admin_names, last_refresh_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+				 admin_names, bm_name, ad_perm, profanity_filter, blocked_count,
+				 last_refresh_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
 			ON CONFLICT (fb_token_id, page_id) DO UPDATE SET
 				name = EXCLUDED.name,
 				link = EXCLUDED.link,
@@ -805,12 +808,17 @@ func (s *FbCacheService) SavePagesCache(userID uint, tenantID *uint, pages []mod
 				email = EXCLUDED.email,
 				address = EXCLUDED.address,
 				admin_names = EXCLUDED.admin_names,
+				bm_name = EXCLUDED.bm_name,
+				ad_perm = EXCLUDED.ad_perm,
+				profanity_filter = EXCLUDED.profanity_filter,
+				blocked_count = EXCLUDED.blocked_count,
 				last_refresh_at = EXCLUDED.last_refresh_at,
 				updated_at = EXCLUDED.updated_at`,
 			userID, tenantID, tokenID, page.PageID, page.Name, page.Link,
 			page.FbOwnerName, page.FbOwnerID, page.Category, page.FanCount, page.FollowersCount,
 			page.IsPublished, page.VerificationStatus, page.Website, page.Phone, page.Email, page.Address,
-			string(adminNamesJSON), now, now,
+			string(adminNamesJSON), page.BusinessName, page.AdPerm, page.ProfanityFilter, page.BlockedCount,
+			now, now,
 		)
 		if err != nil {
 			log.Printf("[FB-CACHE] 保存主页缓存失败 (token_id=%d, page=%s): %v", tokenID, page.PageID, err)

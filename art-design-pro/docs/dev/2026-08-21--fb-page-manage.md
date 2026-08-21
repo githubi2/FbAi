@@ -37,3 +37,21 @@
 
 1. 增加授权弹窗：检测按钮等结果返回后再跳结果页；结果改为一个账号一个方块的卡片（状态/失败账号/当前账号/返回信息）；检测完成后按钮变「重新检测」
 2. 广告授权接口：FB /users 边 role 数字映射（ADMIN→1001/ADVERTISER→1002/ANALYST→1003）；BM 名下账户自动走 assigned_users 边（business 参数 + tasks 数组）；用户名主页地址自动解析为数字 UID
+
+## 2026-08-21 追加：主页扩展字段实测与接入
+
+用真实 token 逐个实测 Graph API 后的结论：
+
+| 列 | 接口 | 结果 |
+|---|---|---|
+| 管理员 | `/{page}/roles`（必须**主页访问口令**，用户口令报 190/2069032） | ✅ 取 tasks 含 MANAGE 的用户 |
+| 黑名单列表 | `/{page}/blocked`（主页口令） | ✅ 显示数量 |
+| 隐藏不文明用语 | `/{page}/settings` 的 `PROFANITY_FILTER`（none/medium/strong） | ✅ |
+| 广告权限 | `/me/accounts` 的 `tasks` 含 `ADVERTISE` | ✅ 1=正常 0=无权限 -1=未知 |
+| BM | Page 的 `business` 字段 | ✅（未绑定 BM 显示 —） |
+| 创建时间 | Page 无 `created_time` 字段（#100 报错实测） | ❌ 显示 — |
+| 屏蔽词设置 | 无接口（`/moderation_keywords` 报 Unknown path） | ❌ 显示 — |
+| 创建渠道/主页状态/申诉时间/允许评论/主页类型 | Graph API 无对应字段 | ❌ 显示 — |
+
+变更：迁移 `012_fb_pages_extra_fields.sql`（bm_name/ad_perm/profanity_filter/blocked_count），
+`GetPageList` 改用 /me/accounts 返回的主页访问口令调 roles/blocked/settings。

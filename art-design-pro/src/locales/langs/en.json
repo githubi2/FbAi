@@ -443,6 +443,11 @@
       "editRemark": "Edit Remark",
       "remarkPlaceholder": "Enter remark",
       "remarkUpdateSuccess": "Remark updated",
+      "profanityNone": "Off",
+      "profanityMedium": "Medium",
+      "profanityStrong": "Strong",
+      "adPermOk": "Normal",
+      "adPermNone": "No Permission",
       "columns": {
         "name": "Page Name",
         "pushStatus": "Push Status",

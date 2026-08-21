@@ -2345,7 +2345,7 @@ func (s *FbService) GetPageList(userID uint, tenantID *uint) (*models.FbPageList
 			fmt.Sprintf("/%s/me/accounts", s.graphVer),
 			map[string]string{
 				"fields": "id,name,link,category,fan_count,followers_count,is_published," +
-					"verification_status,website,phone,emails,location",
+					"verification_status,website,phone,emails,location,access_token,tasks,business",
 				"access_token": accessToken,
 				"limit":        "100",
 			},
@@ -2378,7 +2378,31 @@ func (s *FbService) GetPageList(userID uint, tenantID *uint) (*models.FbPageList
 				VerificationStatus: getString(page, "verification_status"),
 				Website:            getString(page, "website"),
 				Phone:              getString(page, "phone"),
+				AdPerm:             -1,
+				BlockedCount:       0,
 				TokenID:            tokenID,
+			}
+
+			// 新版公共主页体验的 /roles、/blocked、/settings 边必须使用主页访问口令
+			pageToken := getString(page, "access_token")
+			if pageToken == "" {
+				pageToken = accessToken
+			}
+
+			// 广告权限：tasks 中包含 ADVERTISE 即广告功能正常
+			if tasks, ok := page["tasks"].([]interface{}); ok {
+				pageItem.AdPerm = 0
+				for _, task := range tasks {
+					if ts, ok := task.(string); ok && ts == "ADVERTISE" {
+						pageItem.AdPerm = 1
+						break
+					}
+				}
+			}
+
+			// 所属 BM：Page 的 business 字段（未绑定 BM 时为空）
+			if biz, ok := page["business"].(map[string]interface{}); ok {
+				pageItem.BusinessName = getString(biz, "name")
 			}
 
 			if v, ok := page["is_published"].(bool); ok && !v {
@@ -2403,19 +2427,32 @@ func (s *FbService) GetPageList(userID uint, tenantID *uint) (*models.FbPageList
 				pageItem.Address = strings.Join(parts, ", ")
 			}
 
-			// 管理员名单：/roles 边（需 pages 相关权限），失败容忍
+			// 管理员名单：/roles 边（必须用主页访问口令），tasks 含 MANAGE 视为管理员，失败容忍
 			rolesResp, rolesErr := s.fbGet(
 				fmt.Sprintf("/%s/%s/roles", s.graphVer, pageID),
 				map[string]string{
-					"fields":       "name,role",
-					"access_token": accessToken,
+					"fields":       "name,tasks",
+					"access_token": pageToken,
 					"limit":        "100",
 				},
 			)
 			if rolesErr == nil {
 				if rolesData, ok := rolesResp["data"].([]interface{}); ok {
 					for _, r := range rolesData {
-						if ru, ok := r.(map[string]interface{}); ok {
+						ru, ok := r.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						isAdmin := false
+						if rtasks, ok := ru["tasks"].([]interface{}); ok {
+							for _, task := range rtasks {
+								if ts, ok := task.(string); ok && ts == "MANAGE" {
+									isAdmin = true
+									break
+								}
+							}
+						}
+						if isAdmin {
 							if n := getString(ru, "name"); n != "" {
 								pageItem.AdminNames = append(pageItem.AdminNames, n)
 							}
@@ -2424,6 +2461,46 @@ func (s *FbService) GetPageList(userID uint, tenantID *uint) (*models.FbPageList
 				}
 			} else {
 				log.Printf("[FB-PAGE] 获取主页管理员失败 (page=%s): %v", pageID, rolesErr)
+			}
+
+			// 黑名单数量：/blocked 边（主页访问口令），失败容忍
+			blockedResp, blockedErr := s.fbGet(
+				fmt.Sprintf("/%s/%s/blocked", s.graphVer, pageID),
+				map[string]string{
+					"access_token": pageToken,
+					"limit":        "100",
+				},
+			)
+			if blockedErr == nil {
+				if blockedData, ok := blockedResp["data"].([]interface{}); ok {
+					pageItem.BlockedCount = len(blockedData)
+				}
+			} else {
+				log.Printf("[FB-PAGE] 获取主页黑名单失败 (page=%s): %v", pageID, blockedErr)
+			}
+
+			// 隐藏不文明用语：/settings 边的 PROFANITY_FILTER（none/medium/strong），失败容忍
+			settingsResp, settingsErr := s.fbGet(
+				fmt.Sprintf("/%s/%s/settings", s.graphVer, pageID),
+				map[string]string{
+					"access_token": pageToken,
+					"limit":        "100",
+				},
+			)
+			if settingsErr == nil {
+				if settingsData, ok := settingsResp["data"].([]interface{}); ok {
+					for _, item := range settingsData {
+						if so, ok := item.(map[string]interface{}); ok {
+							if getString(so, "setting") == "PROFANITY_FILTER" {
+								if v, ok := so["value"].(string); ok {
+									pageItem.ProfanityFilter = v
+								}
+							}
+						}
+					}
+				}
+			} else {
+				log.Printf("[FB-PAGE] 获取主页设置失败 (page=%s): %v", pageID, settingsErr)
 			}
 
 			allPages = append(allPages, pageItem)

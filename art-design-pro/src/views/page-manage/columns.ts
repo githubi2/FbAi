@@ -15,7 +15,10 @@ interface PageColumnsOptions {
 // FB 官方 API 未提供的字段统一显示 —
 const DASH = () => h('span', { style: { color: '#999' } }, '—')
 
-export function buildPageColumns({ t, onEditRemark }: PageColumnsOptions): ColumnOption<FbPageItem>[] {
+export function buildPageColumns({
+  t,
+  onEditRemark
+}: PageColumnsOptions): ColumnOption<FbPageItem>[] {
   const P = 'menus.pageManage.columns'
 
   return [
@@ -101,7 +104,20 @@ export function buildPageColumns({ t, onEditRemark }: PageColumnsOptions): Colum
       prop: 'hideProfanity',
       label: t(`${P}.hideProfanity`),
       minWidth: 130,
-      formatter: DASH
+      formatter: (row: FbPageItem) => {
+        const map: Record<string, string> = {
+          none: t('menus.pageManage.profanityNone'),
+          medium: t('menus.pageManage.profanityMedium'),
+          strong: t('menus.pageManage.profanityStrong')
+        }
+        const label = map[row.profanityFilter]
+        if (!label) return DASH()
+        return h(
+          ElTag,
+          { type: row.profanityFilter === 'none' ? 'info' : 'success', size: 'small' },
+          () => label
+        )
+      }
     },
     {
       prop: 'verificationStatus',
@@ -118,13 +134,19 @@ export function buildPageColumns({ t, onEditRemark }: PageColumnsOptions): Colum
       prop: 'adPerm',
       label: t(`${P}.adPerm`),
       minWidth: 170,
-      formatter: DASH
+      formatter: (row: FbPageItem) => {
+        if (row.adPerm === 1)
+          return h(ElTag, { type: 'success', size: 'small' }, () => t('menus.pageManage.adPermOk'))
+        if (row.adPerm === 0)
+          return h(ElTag, { type: 'danger', size: 'small' }, () => t('menus.pageManage.adPermNone'))
+        return DASH()
+      }
     },
     {
-      prop: 'bm',
+      prop: 'bmName',
       label: t(`${P}.bm`),
       minWidth: 120,
-      formatter: DASH
+      formatter: (row: FbPageItem) => row.bmName || DASH()
     },
     {
       prop: 'adminNames',
@@ -148,7 +170,7 @@ export function buildPageColumns({ t, onEditRemark }: PageColumnsOptions): Colum
       prop: 'blacklist',
       label: t(`${P}.blacklist`),
       minWidth: 110,
-      formatter: DASH
+      formatter: (row: FbPageItem) => String(row.blockedCount ?? 0)
     },
     {
       prop: 'address',

@@ -391,7 +391,8 @@ export function fetchFbUpdateBmRemark(bmId: string, remark: string) {
 /**
  * 公共主页列表项
  * FB 官方 API 不提供：创建时间、创建渠道、主页状态、申诉时间、允许评论、
- * 隐藏不文明用语、广告权限、屏蔽词设置、黑名单列表、主页类型（前端显示 —）
+ * 屏蔽词设置、主页类型（前端显示 —）
+ * 管理员/黑名单/不文明用语过滤需使用主页访问口令（新版公共主页体验限制）
  */
 export interface FbPageItem {
   pageId: string
@@ -413,8 +414,16 @@ export interface FbPageItem {
   phone: string
   email: string
   address: string
-  /** 管理员名单 */
+  /** 管理员名单（tasks 含 MANAGE 的主页用户） */
   adminNames: string[]
+  /** 所属 BM 名称（未绑定为空） */
+  bmName: string
+  /** 广告权限 1=正常 0=无权限 -1=未知 */
+  adPerm: number
+  /** 隐藏不文明用语 none/medium/strong */
+  profanityFilter: string
+  /** 黑名单数量 */
+  blockedCount: number
   /** 本地推送状态 */
   pushStatus: string
   /** 本地备注 */

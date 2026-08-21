@@ -443,6 +443,11 @@
       "editRemark": "编辑备注",
       "remarkPlaceholder": "请输入备注",
       "remarkUpdateSuccess": "备注更新成功",
+      "profanityNone": "关闭",
+      "profanityMedium": "中等",
+      "profanityStrong": "强",
+      "adPermOk": "正常",
+      "adPermNone": "无权限",
       "columns": {
         "name": "主页名称",
         "pushStatus": "推送状态",

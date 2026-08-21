@@ -151,6 +151,10 @@ type FbPageItem struct {
 	Email              string     `json:"email"`
 	Address            string     `json:"address"`
 	AdminNames         []string   `json:"adminNames"`
+	BusinessName       string     `json:"bmName"`         // 所属 BM 名称（Page business 字段）
+	AdPerm             int        `json:"adPerm"`         // 广告权限 1=正常 0=无权限 -1=未知（tasks 含 ADVERTISE）
+	ProfanityFilter    string     `json:"profanityFilter"` // 隐藏不文明用语 none/medium/strong
+	BlockedCount       int        `json:"blockedCount"`   // 黑名单数量（/blocked 边）
 	PushStatus         string     `json:"pushStatus"` // 本地字段：推送状态
 	Remark             string     `json:"remark"`     // 本地字段：备注
 	LastRefreshAt      *time.Time `json:"lastRefreshAt"`
