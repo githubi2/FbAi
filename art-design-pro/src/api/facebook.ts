@@ -390,8 +390,8 @@ export function fetchFbUpdateBmRemark(bmId: string, remark: string) {
 
 /**
  * 公共主页列表项
- * FB 官方 API 不提供：创建时间、创建渠道、主页状态、申诉时间、允许评论、
- * 屏蔽词设置、主页类型（前端显示 —）
+ * FB 官方 API 不提供（对应列已从表格移除）：创建时间、创建渠道、主页状态、
+ * 申诉时间、允许评论、屏蔽词设置、主页类型
  * 管理员/黑名单/不文明用语过滤需使用主页访问口令（新版公共主页体验限制）
  */
 export interface FbPageItem {

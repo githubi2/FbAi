@@ -55,3 +55,8 @@
 
 变更：迁移 `012_fb_pages_extra_fields.sql`（bm_name/ad_perm/profanity_filter/blocked_count），
 `GetPageList` 改用 /me/accounts 返回的主页访问口令调 roles/blocked/settings。
+
+## 2026-08-21 追加2：移除 API 不可用的列
+
+按用户要求移除 7 个 Graph API 拿不到的列：创建时间/创建渠道/主页状态/申诉时间/允许评论/屏蔽词设置/主页类型。
+保留 19 列：勾选/主页名称/推送状态/备注/主页ID/发布状态/隐藏不文明用语/主页认证/广告权限/BM/管理员/黑名单列表/地址/电话/邮箱/网址/主页分类/点赞数/粉丝数/操作。

@@ -62,30 +62,6 @@ export function buildPageColumns({
       formatter: (row: FbPageItem) => row.pageId || '—'
     },
     {
-      prop: 'createdTime',
-      label: t(`${P}.createdTime`),
-      minWidth: 160,
-      formatter: DASH
-    },
-    {
-      prop: 'createdChannel',
-      label: t(`${P}.createdChannel`),
-      width: 100,
-      formatter: DASH
-    },
-    {
-      prop: 'pageStatus',
-      label: t(`${P}.pageStatus`),
-      width: 100,
-      formatter: DASH
-    },
-    {
-      prop: 'appealTime',
-      label: t(`${P}.appealTime`),
-      minWidth: 160,
-      formatter: DASH
-    },
-    {
       prop: 'isPublished',
       label: t(`${P}.publishStatus`),
       width: 100,
@@ -93,12 +69,6 @@ export function buildPageColumns({
         h(ElTag, { type: row.isPublished ? 'success' : 'info', size: 'small' }, () =>
           row.isPublished ? t('menus.pageManage.published') : t('menus.pageManage.unpublished')
         )
-    },
-    {
-      prop: 'allowComment',
-      label: t(`${P}.allowComment`),
-      width: 100,
-      formatter: DASH
     },
     {
       prop: 'hideProfanity',
@@ -161,12 +131,6 @@ export function buildPageColumns({
       }
     },
     {
-      prop: 'blockedWords',
-      label: t(`${P}.blockedWords`),
-      minWidth: 110,
-      formatter: DASH
-    },
-    {
       prop: 'blacklist',
       label: t(`${P}.blacklist`),
       minWidth: 110,
@@ -202,12 +166,6 @@ export function buildPageColumns({
       label: t(`${P}.category`),
       minWidth: 130,
       formatter: (row: FbPageItem) => row.category || '—'
-    },
-    {
-      prop: 'pageType',
-      label: t(`${P}.pageType`),
-      width: 100,
-      formatter: DASH
     },
     {
       prop: 'fanCount',
