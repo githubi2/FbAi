@@ -534,3 +534,101 @@ export function fetchFbCreatePixel(adAccountId: string, name: string) {
     showErrorMessage: true
   })
 }
+
+// ==================== 广告投放（只读监控，v26.0） ====================
+
+/** 广告数据统计（近 7 天） */
+export interface FbInsight {
+  spend: string
+  impressions: string
+  clicks: string
+  ctr: string
+  cpc: string
+}
+
+/** 广告系列 */
+export interface FbCampaign {
+  id: string
+  name: string
+  status: string
+  effectiveStatus: string
+  objective: string
+  dailyBudget: string
+  lifetimeBudget: string
+  bidStrategy: string
+  startTime: string
+  stopTime: string
+  createdTime: string
+  updatedTime: string
+  insight?: FbInsight
+}
+
+export interface FbCampaignListResponse {
+  list: FbCampaign[]
+  total: number
+  accountId: string
+}
+
+/** 广告组 */
+export interface FbAdSet {
+  id: string
+  name: string
+  status: string
+  effectiveStatus: string
+  optimizationGoal: string
+  billingEvent: string
+  dailyBudget: string
+  lifetimeBudget: string
+  startTime: string
+  stopTime: string
+  createdTime: string
+}
+
+export interface FbAdSetListResponse {
+  list: FbAdSet[]
+  total: number
+}
+
+/** 广告 */
+export interface FbAd {
+  id: string
+  name: string
+  status: string
+  effectiveStatus: string
+  creativeId: string
+  creativeName: string
+  createdTime: string
+  updatedTime: string
+}
+
+export interface FbAdListResponse {
+  list: FbAd[]
+  total: number
+}
+
+/** 获取广告系列列表（含近 7 天统计） */
+export function fetchFbCampaigns(accountId: string) {
+  return request.get<FbCampaignListResponse>({
+    url: '/api/v1/fb/campaigns',
+    params: { accountId },
+    showErrorMessage: false
+  })
+}
+
+/** 获取广告组列表 */
+export function fetchFbAdSets(campaignId: string, accountId: string) {
+  return request.get<FbAdSetListResponse>({
+    url: `/api/v1/fb/campaigns/${campaignId}/adsets`,
+    params: { accountId },
+    showErrorMessage: false
+  })
+}
+
+/** 获取广告列表 */
+export function fetchFbAds(adsetId: string, accountId: string) {
+  return request.get<FbAdListResponse>({
+    url: `/api/v1/fb/adsets/${adsetId}/ads`,
+    params: { accountId },
+    showErrorMessage: false
+  })
+}

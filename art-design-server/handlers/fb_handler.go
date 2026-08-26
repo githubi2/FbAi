@@ -859,6 +859,73 @@ func (h *FbHandler) RemoveUser(c *gin.Context) {
 	c.JSON(http.StatusOK, models.Success(result))
 }
 
+// ==================== FB 广告投放（只读监控）====================
+
+// CampaignList GET /api/v1/fb/campaigns?accountId=act_xxx — 广告系列列表（含近7天统计）
+func (h *FbHandler) CampaignList(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+	accountID := c.Query("accountId")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少 accountId"))
+		return
+	}
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetCampaigns(userID, tenantID, accountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, models.Success(result))
+}
+
+// AdSetList GET /api/v1/fb/campaigns/:id/adsets?accountId=act_xxx — 广告组列表
+func (h *FbHandler) AdSetList(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+	campaignID := c.Param("id")
+	accountID := c.Query("accountId")
+	if campaignID == "" || accountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少参数"))
+		return
+	}
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetAdSets(userID, tenantID, campaignID, accountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, models.Success(result))
+}
+
+// AdList GET /api/v1/fb/adsets/:id/ads?accountId=act_xxx — 广告列表
+func (h *FbHandler) AdList(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+	adsetID := c.Param("id")
+	accountID := c.Query("accountId")
+	if adsetID == "" || accountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少参数"))
+		return
+	}
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetAds(userID, tenantID, adsetID, accountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, models.Success(result))
+}
+
 // ==================== BM 列表 ====================
 
 // BmList GET /api/v1/fb/bm-list — 获取 BM 列表

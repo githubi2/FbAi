@@ -896,6 +896,232 @@ func (s *FbService) RefreshAccountStats(id uint, userID uint, tenantID *uint) er
 	return nil
 }
 
+// ==================== FB 广告投放（只读监控，v26.0）====================
+// 数据源：公开 Marketing API（限量 v26.0，已实测可用）：
+//
+//	/{act_id}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,...
+//	/{campaign_id}/adsets?fields=id,name,status,effective_status,optimization_goal,...
+//	/{adset_id}/ads?fields=id,name,status,effective_status,creative{id,name},...
+//	/{act_id}/insights?date_preset=last_7d&level=campaign&fields=campaign_id,spend,...
+
+// resolveTokenByAccountID 按广告账户 ID 解析当前用户/租户下的访问 token（账户必须属于用户）
+func (s *FbService) resolveTokenByAccountID(userID uint, tenantID *uint, accountID string) (string, error) {
+	if accountID == "" {
+		return "", fmt.Errorf("缺少 accountId")
+	}
+	if db.Pool == nil {
+		return "", fmt.Errorf("数据库未连接")
+	}
+	ctx := context.Background()
+
+	var tokenID uint
+	err := db.Pool.QueryRow(ctx,
+		`SELECT fb_token_id FROM fb_ad_accounts_cache
+		 WHERE ad_account_id = $1 AND user_id = $2 AND tenant_id IS NOT DISTINCT FROM $3
+		 LIMIT 1`,
+		accountID, userID, tenantID,
+	).Scan(&tokenID)
+	if err != nil {
+		return "", fmt.Errorf("广告账户 %s 不属于当前用户: %w", accountID, err)
+	}
+
+	var accessToken string
+	if err := db.Pool.QueryRow(ctx,
+		`SELECT access_token FROM fb_tokens WHERE id = $1 AND user_id = $2 AND status = 1`,
+		tokenID, userID,
+	).Scan(&accessToken); err != nil {
+		return "", fmt.Errorf("获取授权 token 失败: %w", err)
+	}
+	return accessToken, nil
+}
+
+// GetCampaigns 获取广告系列列表 + 近 7 天统计（insights 一次性合并，避免 N+1）
+func (s *FbService) GetCampaigns(userID uint, tenantID *uint, accountID string) (*models.FbCampaignListResponse, error) {
+	s.init()
+	accessToken, err := s.resolveTokenByAccountID(userID, tenantID, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/campaigns", s.graphVer, accountID),
+		map[string]string{
+			"fields":       "id,name,status,effective_status,objective,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,created_time,updated_time",
+			"access_token": accessToken,
+			"limit":        "100",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("获取广告系列失败: %w", err)
+	}
+
+	list := []models.FbCampaign{}
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				list = append(list, models.FbCampaign{
+					ID:              getString(m, "id"),
+					Name:            getString(m, "name"),
+					Status:          getString(m, "status"),
+					EffectiveStatus: getString(m, "effective_status"),
+					Objective:       getString(m, "objective"),
+					DailyBudget:     getString(m, "daily_budget"),
+					LifetimeBudget:  getString(m, "lifetime_budget"),
+					BidStrategy:     getString(m, "bid_strategy"),
+					StartTime:       getString(m, "start_time"),
+					StopTime:        getString(m, "stop_time"),
+					CreatedTime:     getString(m, "created_time"),
+					UpdatedTime:     getString(m, "updated_time"),
+				})
+			}
+		}
+	}
+
+	// 近 7 天统计：每账户 1 次 insights 调用（level=campaign 汇总全部系列）
+	s.mergeCampaignInsights(accountID, accessToken, list)
+
+	if list == nil {
+		list = []models.FbCampaign{}
+	}
+	return &models.FbCampaignListResponse{List: list, Total: len(list), AccountID: accountID}, nil
+}
+
+// mergeCampaignInsights 合并近 7 天统计到系列列表（失败仅记日志，不影响列表）
+func (s *FbService) mergeCampaignInsights(accountID, accessToken string, list []models.FbCampaign) {
+	if len(list) == 0 {
+		return
+	}
+	insResp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/insights", s.graphVer, accountID),
+		map[string]string{
+			"date_preset":  "last_7d",
+			"level":        "campaign",
+			"fields":       "campaign_id,spend,impressions,clicks,ctr,cpc",
+			"access_token": accessToken,
+			"limit":        "500",
+		},
+	)
+	if err != nil {
+		log.Printf("[FB-CAMPAIGN] 获取 insights 失败 (act=%s): %v", accountID, err)
+		return
+	}
+	insMap := make(map[string]*models.FbInsight)
+	if data, ok := insResp["data"].([]interface{}); ok {
+		for _, item := range data {
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			cid := getString(m, "campaign_id")
+			if cid == "" {
+				continue
+			}
+			insMap[cid] = &models.FbInsight{
+				Spend:       getString(m, "spend"),
+				Impressions: getString(m, "impressions"),
+				Clicks:      getString(m, "clicks"),
+				CTR:         getString(m, "ctr"),
+				CPC:         getString(m, "cpc"),
+			}
+		}
+	}
+	for i := range list {
+		if ins, ok := insMap[list[i].ID]; ok {
+			list[i].Insight = ins
+		}
+	}
+}
+
+// GetAdSets 获取广告组列表
+func (s *FbService) GetAdSets(userID uint, tenantID *uint, campaignID, accountID string) (*models.FbAdSetListResponse, error) {
+	s.init()
+	accessToken, err := s.resolveTokenByAccountID(userID, tenantID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/adsets", s.graphVer, campaignID),
+		map[string]string{
+			"fields":       "id,name,status,effective_status,optimization_goal,billing_event,daily_budget,lifetime_budget,start_time,stop_time,created_time",
+			"access_token": accessToken,
+			"limit":        "100",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("获取广告组失败: %w", err)
+	}
+	list := []models.FbAdSet{}
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				list = append(list, models.FbAdSet{
+					ID:               getString(m, "id"),
+					Name:             getString(m, "name"),
+					Status:           getString(m, "status"),
+					EffectiveStatus:  getString(m, "effective_status"),
+					OptimizationGoal: getString(m, "optimization_goal"),
+					BillingEvent:     getString(m, "billing_event"),
+					DailyBudget:      getString(m, "daily_budget"),
+					LifetimeBudget:   getString(m, "lifetime_budget"),
+					StartTime:        getString(m, "start_time"),
+					StopTime:         getString(m, "stop_time"),
+					CreatedTime:      getString(m, "created_time"),
+				})
+			}
+		}
+	}
+	if list == nil {
+		list = []models.FbAdSet{}
+	}
+	return &models.FbAdSetListResponse{List: list, Total: len(list)}, nil
+}
+
+// GetAds 获取广告列表
+func (s *FbService) GetAds(userID uint, tenantID *uint, adsetID, accountID string) (*models.FbAdListResponse, error) {
+	s.init()
+	accessToken, err := s.resolveTokenByAccountID(userID, tenantID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/ads", s.graphVer, adsetID),
+		map[string]string{
+			"fields":       "id,name,status,effective_status,creative{id,name},created_time,updated_time",
+			"access_token": accessToken,
+			"limit":        "100",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("获取广告失败: %w", err)
+	}
+	list := []models.FbAd{}
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				creativeID, creativeName := "", ""
+				if cr, ok := m["creative"].(map[string]interface{}); ok {
+					creativeID = getString(cr, "id")
+					creativeName = getString(cr, "name")
+				}
+				list = append(list, models.FbAd{
+					ID:              getString(m, "id"),
+					Name:            getString(m, "name"),
+					Status:          getString(m, "status"),
+					EffectiveStatus: getString(m, "effective_status"),
+					CreativeID:      creativeID,
+					CreativeName:    creativeName,
+					CreatedTime:     getString(m, "created_time"),
+					UpdatedTime:     getString(m, "updated_time"),
+				})
+			}
+		}
+	}
+	if list == nil {
+		list = []models.FbAd{}
+	}
+	return &models.FbAdListResponse{List: list, Total: len(list)}, nil
+}
+
 // fbGet 调用 Facebook Graph API (GET) — 自动走限速队列
 func (s *FbService) fbGet(endpoint string, params map[string]string) (map[string]interface{}, error) {
 	s.init()

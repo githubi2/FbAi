@@ -267,5 +267,6 @@ func (s *MenuService) listFallback() []models.Menu {
 		{ID: 17, ParentID: 0, Title: "FB账户列表", Name: "AdAccountList", Path: "/ad-account", Component: "/ad-account/index", Icon: "ri:advertisement-line", SortOrder: 5, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 18, ParentID: 0, Title: "广告账户管理", Name: "AdAccountManage", Path: "/ad-account-manage", Component: "/ad-account/manage/index", Icon: "ri:advertisement-line", SortOrder: 6, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 		{ID: 20, ParentID: 0, Title: "BM列表", Name: "AdAccountBmList", Path: "/bm-manage", Component: "/ad-account/bm/index", Icon: "ri:building-2-line", SortOrder: 7, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: 21, ParentID: 0, Title: "广告投放", Name: "AdCampaign", Path: "/ad-campaign", Component: "/ad-campaign/index", Icon: "ri:megaphone-line", SortOrder: 8, MenuType: "menu", Status: 1, CreatedAt: now, UpdatedAt: now},
 	}
 }

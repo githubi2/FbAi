@@ -167,6 +167,80 @@ type FbPageListResponse struct {
 	Total int          `json:"total"`
 }
 
+// ==================== FB 广告投放（只读监控，v26.0）====================
+
+// FbInsight 广告数据统计（近 7 天）
+type FbInsight struct {
+	Spend       string `json:"spend"`
+	Impressions string `json:"impressions"`
+	Clicks      string `json:"clicks"`
+	CTR         string `json:"ctr"`
+	CPC         string `json:"cpc"`
+}
+
+// FbCampaign 广告系列
+type FbCampaign struct {
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Status          string     `json:"status"`          // ACTIVE/PAUSED/ARCHIVED/DELETED
+	EffectiveStatus string     `json:"effectiveStatus"` // 实际生效状态
+	Objective       string     `json:"objective"`       // 目标（OUTCOME_*）
+	DailyBudget     string     `json:"dailyBudget"`     // FB 返回字符串（"0"=未设置）
+	LifetimeBudget  string     `json:"lifetimeBudget"`
+	BidStrategy     string     `json:"bidStrategy"`
+	StartTime       string     `json:"startTime"`
+	StopTime        string     `json:"stopTime"`
+	CreatedTime     string     `json:"createdTime"`
+	UpdatedTime     string     `json:"updatedTime"`
+	Insight         *FbInsight `json:"insight,omitempty"` // 近 7 天统计（insights 合并）
+}
+
+// FbCampaignListResponse 广告系列响应
+type FbCampaignListResponse struct {
+	List      []FbCampaign `json:"list"`
+	Total     int          `json:"total"`
+	AccountID string       `json:"accountId"`
+}
+
+// FbAdSet 广告组
+type FbAdSet struct {
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Status           string `json:"status"`
+	EffectiveStatus  string `json:"effectiveStatus"`
+	OptimizationGoal string `json:"optimizationGoal"`
+	BillingEvent     string `json:"billingEvent"`
+	DailyBudget      string `json:"dailyBudget"`
+	LifetimeBudget   string `json:"lifetimeBudget"`
+	StartTime        string `json:"startTime"`
+	StopTime         string `json:"stopTime"`
+	CreatedTime      string `json:"createdTime"`
+}
+
+// FbAdSetListResponse 广告组响应
+type FbAdSetListResponse struct {
+	List  []FbAdSet `json:"list"`
+	Total int       `json:"total"`
+}
+
+// FbAd 广告
+type FbAd struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Status          string `json:"status"`
+	EffectiveStatus string `json:"effectiveStatus"`
+	CreativeID      string `json:"creativeId"`
+	CreativeName    string `json:"creativeName"`
+	CreatedTime     string `json:"createdTime"`
+	UpdatedTime     string `json:"updatedTime"`
+}
+
+// FbAdListResponse 广告响应
+type FbAdListResponse struct {
+	List  []FbAd `json:"list"`
+	Total int    `json:"total"`
+}
+
 // ==================== FB 像素 ====================
 
 // FbPixelItem 像素列表项
