@@ -526,7 +526,8 @@
         "ARCHIVED": "Archived",
         "DELETED": "Deleted",
         "IN_PROCESS": "In Process",
-        "WITH_ISSUES": "With Issues"
+        "WITH_ISSUES": "With Issues",
+        "ACCOUNT_DISABLED": "Account Disabled"
       }
     },
     "addAuth": {

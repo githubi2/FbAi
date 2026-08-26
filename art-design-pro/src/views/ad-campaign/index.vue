@@ -211,7 +211,7 @@
     core: {
       apiFn: fetchCampaignPaged,
       apiParams: { current: 1, size: 20, accountId: '' },
-      columnsFactory: () => buildCampaignColumns({ t, onViewAdSets })
+      columnsFactory: () => buildCampaignColumns({ t, isAccountDisabled, onViewAdSets })
     }
   })
 
@@ -228,7 +228,7 @@
     core: {
       apiFn: fetchAdSetPaged,
       apiParams: { current: 1, size: 20, accountId: '', campaignId: '' },
-      columnsFactory: () => buildAdSetColumns({ t, onViewAds })
+      columnsFactory: () => buildAdSetColumns({ t, isAccountDisabled, onViewAds })
     }
   })
 
@@ -245,7 +245,7 @@
     core: {
       apiFn: fetchAdPaged,
       apiParams: { current: 1, size: 20, accountId: '', adsetId: '' },
-      columnsFactory: () => buildAdColumns(t)
+      columnsFactory: () => buildAdColumns(t, isAccountDisabled)
     }
   })
 
@@ -269,41 +269,40 @@
   function onViewAdSets(row: FbCampaign) {
     activeCampaignId.value = row.id
     activeTab.value = 'adset'
-    adsetReplace({
-      accountId: searchForm.accountId,
-      campaignId: row.id,
-      current: 1,
-      size: 20
-    } as any)
-    adsetGetData()
   }
 
   function onViewAds(row: FbAdSet) {
     activeAdsetId.value = row.id
     activeTab.value = 'ad'
-    adReplace({ accountId: searchForm.accountId, adsetId: row.id, current: 1, size: 20 } as any)
-    adGetData()
   }
 
-  // 标签切换：进入广告组/广告且已有上下文时刷新
+  // 当前所选广告账户是否被封禁（account_status != 1 或 disable_reason > 0）
+  // FB API 不返回"账户已停用"状态——按 FB 后台口径由账户状态推断，campaign/adset/ad 全部显示该状态
+  function isAccountDisabled() {
+    const acc = accounts.value.find((a) => a.id === searchForm.accountId)
+    return !!acc && (acc.accountStatus !== 1 || acc.disableReason > 0)
+  }
+
+  // 标签切换：自动以第一行作为下钻上下文加载（无需先点操作按钮）
   watch(activeTab, (tab) => {
-    if (tab === 'adset' && activeCampaignId.value && searchForm.accountId) {
-      adsetReplace({
-        accountId: searchForm.accountId,
-        campaignId: activeCampaignId.value,
-        current: 1,
-        size: 20
-      } as any)
-      adsetGetData()
+    const accountId = searchForm.accountId
+    if (tab === 'adset') {
+      if (!activeCampaignId.value && (campaignData.value as any[]).length) {
+        activeCampaignId.value = (campaignData.value as any[])[0].id
+      }
+      if (activeCampaignId.value && accountId) {
+        adsetReplace({ accountId, campaignId: activeCampaignId.value, current: 1, size: 20 } as any)
+        adsetGetData()
+      }
     }
-    if (tab === 'ad' && activeAdsetId.value && searchForm.accountId) {
-      adReplace({
-        accountId: searchForm.accountId,
-        adsetId: activeAdsetId.value,
-        current: 1,
-        size: 20
-      } as any)
-      adGetData()
+    if (tab === 'ad') {
+      if (!activeAdsetId.value && (adsetData.value as any[]).length) {
+        activeAdsetId.value = (adsetData.value as any[])[0].id
+      }
+      if (activeAdsetId.value && accountId) {
+        adReplace({ accountId, adsetId: activeAdsetId.value, current: 1, size: 20 } as any)
+        adGetData()
+      }
     }
   })
 </script>

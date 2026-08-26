@@ -526,7 +526,8 @@
         "ARCHIVED": "已归档",
         "DELETED": "已删除",
         "IN_PROCESS": "处理中",
-        "WITH_ISSUES": "异常"
+        "WITH_ISSUES": "异常",
+        "ACCOUNT_DISABLED": "账户已停用"
       }
     },
     "addAuth": {
