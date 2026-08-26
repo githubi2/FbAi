@@ -109,6 +109,24 @@ E:\FbAi\
 | Node | ≥ 20.19.0, pnpm ≥ 8.8 |
 | Go proxy (China) | `GOPROXY=https://goproxy.cn,direct` |
 
+### Startup Rule: Stop Running Instances First (MANDATORY — 每次运行前先查已运行实例)
+
+**每次运行项目前，必须先检查是否有本项目实例已在运行（前端 vite/node 进程、后端 `server.exe`）。有 → 先关闭，再重新运行。** 禁止在旧实例仍在运行时直接启动新实例。
+
+```bash
+# 0.1 关闭已运行的后端实例（Go 无热重载，旧进程 = 旧代码，新代码永远不生效）
+tasklist | grep -i "server.exe" && taskkill //F //IM server.exe 2>/dev/null
+
+# 0.2 关闭已运行的前端实例（vite 进程；端口被占会顺序占用 3006→3007→3008 造成混乱）
+for port in 3006 3007 3008; do
+  pid=$(netstat -ano 2>/dev/null | grep ":$port " | grep LISTENING | awk '{print $5}' | head -1)
+  [ -n "$pid" ] && taskkill //F //PID $pid 2>/dev/null
+done
+
+# 0.3 验证端口已全部释放（无 LISTENING 行才算干净），然后才启动新实例
+netstat -ano 2>/dev/null | grep -E ":(3006|3007|3008|9090) " | grep LISTENING || echo "ports clean"
+```
+
 ### Key Commands
 
 ```bash
