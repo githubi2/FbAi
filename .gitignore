@@ -11,3 +11,13 @@ Thumbs.db
 
 # CodeGraph index
 .codegraph/
+
+# Sensitive / dev artifacts (never commit)
+token.txt
+fb_test.py
+login-helper.html
+bore.exe
+bore.zip
+ngrok.exe
+ngrok.zip
+docs/tmp-shot*.png
