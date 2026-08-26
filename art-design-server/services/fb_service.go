@@ -1032,7 +1032,111 @@ func (s *FbService) mergeCampaignInsights(accountID, accessToken string, list []
 	}
 }
 
-// GetAdSets 获取广告组列表
+// GetAdSetsByAccount 获取广告账户下全部广告组（一次调用，含所属系列）
+func (s *FbService) GetAdSetsByAccount(userID uint, tenantID *uint, accountID string) (*models.FbAdSetListResponse, error) {
+	s.init()
+	accessToken, err := s.resolveTokenByAccountID(userID, tenantID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/adsets", s.graphVer, accountID),
+		map[string]string{
+			"fields":       "id,name,status,effective_status,optimization_goal,billing_event,daily_budget,lifetime_budget,start_time,stop_time,created_time,campaign{id,name}",
+			"access_token": accessToken,
+			"limit":        "100",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("获取广告组失败: %w", err)
+	}
+	list := []models.FbAdSet{}
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				campaignName := ""
+				if camp, ok := m["campaign"].(map[string]interface{}); ok {
+					campaignName = getString(camp, "name")
+				}
+				list = append(list, models.FbAdSet{
+					ID:               getString(m, "id"),
+					Name:             getString(m, "name"),
+					Status:           getString(m, "status"),
+					EffectiveStatus:  getString(m, "effective_status"),
+					OptimizationGoal: getString(m, "optimization_goal"),
+					BillingEvent:     getString(m, "billing_event"),
+					DailyBudget:      getString(m, "daily_budget"),
+					LifetimeBudget:   getString(m, "lifetime_budget"),
+					StartTime:        getString(m, "start_time"),
+					StopTime:         getString(m, "stop_time"),
+					CreatedTime:      getString(m, "created_time"),
+					CampaignName:     campaignName, // 所属系列
+				})
+			}
+		}
+	}
+	if list == nil {
+		list = []models.FbAdSet{}
+	}
+	return &models.FbAdSetListResponse{List: list, Total: len(list)}, nil
+}
+
+// GetAdsByAccount 获取广告账户下全部广告（一次调用，含所属系列/广告组）
+func (s *FbService) GetAdsByAccount(userID uint, tenantID *uint, accountID string) (*models.FbAdListResponse, error) {
+	s.init()
+	accessToken, err := s.resolveTokenByAccountID(userID, tenantID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.fbGet(
+		fmt.Sprintf("/%s/%s/ads", s.graphVer, accountID),
+		map[string]string{
+			"fields":       "id,name,status,effective_status,campaign{id,name},adset{id,name},creative{id,name},created_time,updated_time",
+			"access_token": accessToken,
+			"limit":        "100",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("获取广告失败: %w", err)
+	}
+	list := []models.FbAd{}
+	if data, ok := resp["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				campaignName, adsetName := "", ""
+				if camp, ok := m["campaign"].(map[string]interface{}); ok {
+					campaignName = getString(camp, "name")
+				}
+				if as, ok := m["adset"].(map[string]interface{}); ok {
+					adsetName = getString(as, "name")
+				}
+				creativeID, creativeName := "", ""
+				if cr, ok := m["creative"].(map[string]interface{}); ok {
+					creativeID = getString(cr, "id")
+					creativeName = getString(cr, "name")
+				}
+				list = append(list, models.FbAd{
+					ID:              getString(m, "id"),
+					Name:            getString(m, "name"),
+					Status:          getString(m, "status"),
+					EffectiveStatus: getString(m, "effective_status"),
+					CreativeID:      creativeID,
+					CreativeName:    creativeName,
+					CreatedTime:     getString(m, "created_time"),
+					UpdatedTime:     getString(m, "updated_time"),
+					CampaignName:    campaignName, // 所属系列
+					AdsetName:       adsetName,    // 所属广告组
+				})
+			}
+		}
+	}
+	if list == nil {
+		list = []models.FbAd{}
+	}
+	return &models.FbAdListResponse{List: list, Total: len(list)}, nil
+}
+
+// GetAdSets 获取广告组列表（按 campaign 单个查询，保留兼容）
 func (s *FbService) GetAdSets(userID uint, tenantID *uint, campaignID, accountID string) (*models.FbAdSetListResponse, error) {
 	s.init()
 	accessToken, err := s.resolveTokenByAccountID(userID, tenantID, accountID)

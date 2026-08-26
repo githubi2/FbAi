@@ -582,6 +582,8 @@ export interface FbAdSet {
   startTime: string
   stopTime: string
   createdTime: string
+  /** 所属系列名（账户级查询时返回） */
+  campaignName: string
 }
 
 export interface FbAdSetListResponse {
@@ -599,6 +601,10 @@ export interface FbAd {
   creativeName: string
   createdTime: string
   updatedTime: string
+  /** 所属系列名（账户级查询时返回） */
+  campaignName: string
+  /** 所属广告组名（账户级查询时返回） */
+  adsetName: string
 }
 
 export interface FbAdListResponse {
@@ -615,7 +621,7 @@ export function fetchFbCampaigns(accountId: string) {
   })
 }
 
-/** 获取广告组列表 */
+/** 获取广告组列表（按 campaign 查询，兼容旧端点） */
 export function fetchFbAdSets(campaignId: string, accountId: string) {
   return request.get<FbAdSetListResponse>({
     url: `/api/v1/fb/campaigns/${campaignId}/adsets`,
@@ -624,10 +630,28 @@ export function fetchFbAdSets(campaignId: string, accountId: string) {
   })
 }
 
-/** 获取广告列表 */
+/** 获取广告账户下全部广告组（账户级聚合，一次调用） */
+export function fetchFbAdSetsByAccount(accountId: string) {
+  return request.get<FbAdSetListResponse>({
+    url: '/api/v1/fb/adsets',
+    params: { accountId },
+    showErrorMessage: false
+  })
+}
+
+/** 获取广告列表（按 adset 查询，兼容旧端点） */
 export function fetchFbAds(adsetId: string, accountId: string) {
   return request.get<FbAdListResponse>({
     url: `/api/v1/fb/adsets/${adsetId}/ads`,
+    params: { accountId },
+    showErrorMessage: false
+  })
+}
+
+/** 获取广告账户下全部广告（账户级聚合，一次调用） */
+export function fetchFbAdsByAccount(accountId: string) {
+  return request.get<FbAdListResponse>({
+    url: '/api/v1/fb/ads',
     params: { accountId },
     showErrorMessage: false
   })

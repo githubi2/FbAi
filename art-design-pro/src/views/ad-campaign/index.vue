@@ -105,11 +105,10 @@
   import { useTable } from '@/hooks/core/useTable'
   import {
     fetchFbCampaigns,
-    fetchFbAdSets,
-    fetchFbAds,
+    fetchFbAdSetsByAccount,
+    fetchFbAdsByAccount,
     fetchFbAdAccountsDetail,
     type FbCampaign,
-    type FbAdSet,
     type FbAdAccountDetail
   } from '@/api/facebook'
   import { buildCampaignColumns, buildAdSetColumns, buildAdColumns } from './columns'
@@ -159,13 +158,14 @@
     }
   }
 
+  // 广告组/广告：账户级聚合（一次调用返回该账户全部数据，含所属系列/广告组）
   const fetchAdSetPaged = async (params: any) => {
-    const { accountId = '', campaignId = '' } = params || {}
-    if (!accountId || !campaignId) return { list: [], total: 0, page: 1, size: 20 }
+    const accountId = params?.accountId || ''
+    if (!accountId) return { list: [], total: 0, page: 1, size: 20 }
     const current = params?.current || 1
     const size = params?.size || 20
     try {
-      const res = await fetchFbAdSets(campaignId, accountId)
+      const res = await fetchFbAdSetsByAccount(accountId)
       const list = res.list || []
       return {
         list: list.slice((current - 1) * size, current * size),
@@ -179,12 +179,12 @@
   }
 
   const fetchAdPaged = async (params: any) => {
-    const { accountId = '', adsetId = '' } = params || {}
-    if (!accountId || !adsetId) return { list: [], total: 0, page: 1, size: 20 }
+    const accountId = params?.accountId || ''
+    if (!accountId) return { list: [], total: 0, page: 1, size: 20 }
     const current = params?.current || 1
     const size = params?.size || 20
     try {
-      const res = await fetchFbAds(adsetId, accountId)
+      const res = await fetchFbAdsByAccount(accountId)
       const list = res.list || []
       return {
         list: list.slice((current - 1) * size, current * size),
@@ -227,8 +227,8 @@
   } = useTable({
     core: {
       apiFn: fetchAdSetPaged,
-      apiParams: { current: 1, size: 20, accountId: '', campaignId: '' },
-      columnsFactory: () => buildAdSetColumns({ t, isAccountDisabled, onViewAds })
+      apiParams: { current: 1, size: 20, accountId: '' },
+      columnsFactory: () => buildAdSetColumns({ t, isAccountDisabled })
     }
   })
 
@@ -244,15 +244,13 @@
   } = useTable({
     core: {
       apiFn: fetchAdPaged,
-      apiParams: { current: 1, size: 20, accountId: '', adsetId: '' },
+      apiParams: { current: 1, size: 20, accountId: '' },
       columnsFactory: () => buildAdColumns(t, isAccountDisabled)
     }
   })
 
   // ==================== 交互 ====================
   const activeTab = ref<'campaign' | 'adset' | 'ad'>('campaign')
-  const activeCampaignId = ref('')
-  const activeAdsetId = ref('')
 
   const handleSearch = () => {
     campaignReplace({ accountId: searchForm.accountId, current: 1, size: 20 } as any)
@@ -266,14 +264,8 @@
   }
 
   // 函数声明（提升）：columnsFactory 在 setup 时立即执行仅读取引用，实际访问的 ref 在点击时已初始化
-  function onViewAdSets(row: FbCampaign) {
-    activeCampaignId.value = row.id
+  function onViewAdSets() {
     activeTab.value = 'adset'
-  }
-
-  function onViewAds(row: FbAdSet) {
-    activeAdsetId.value = row.id
-    activeTab.value = 'ad'
   }
 
   // 当前所选广告账户是否被封禁（account_status != 1 或 disable_reason > 0）
@@ -283,26 +275,16 @@
     return !!acc && (acc.accountStatus !== 1 || acc.disableReason > 0)
   }
 
-  // 标签切换：自动以第一行作为下钻上下文加载（无需先点操作按钮）
+  // 标签切换：广告组/广告为账户级全量（一次拉取该账户全部，含归属列）
   watch(activeTab, (tab) => {
     const accountId = searchForm.accountId
-    if (tab === 'adset') {
-      if (!activeCampaignId.value && (campaignData.value as any[]).length) {
-        activeCampaignId.value = (campaignData.value as any[])[0].id
-      }
-      if (activeCampaignId.value && accountId) {
-        adsetReplace({ accountId, campaignId: activeCampaignId.value, current: 1, size: 20 } as any)
-        adsetGetData()
-      }
+    if (tab === 'adset' && accountId) {
+      adsetReplace({ accountId, current: 1, size: 20 } as any)
+      adsetGetData()
     }
-    if (tab === 'ad') {
-      if (!activeAdsetId.value && (adsetData.value as any[]).length) {
-        activeAdsetId.value = (adsetData.value as any[])[0].id
-      }
-      if (activeAdsetId.value && accountId) {
-        adReplace({ accountId, adsetId: activeAdsetId.value, current: 1, size: 20 } as any)
-        adGetData()
-      }
+    if (tab === 'ad' && accountId) {
+      adReplace({ accountId, current: 1, size: 20 } as any)
+      adGetData()
     }
   })
 </script>

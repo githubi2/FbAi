@@ -518,7 +518,9 @@
         "optimizationGoal": "优化目标",
         "billingEvent": "计费方式",
         "creative": "创意",
-        "effectiveStatus": "生效状态"
+        "effectiveStatus": "生效状态",
+        "campaignName": "所属系列",
+        "adsetName": "所属广告组"
       },
       "status": {
         "ACTIVE": "投放中",

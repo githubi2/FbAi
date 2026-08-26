@@ -121,6 +121,8 @@ func SetupRouter() *gin.Engine {
 				fb.GET("/ad-accounts/:id/payments", handlers.DefaultFbHandler.PaymentHistory)
 				fb.PUT("/ad-accounts/:id/remark", handlers.DefaultFbHandler.UpdateAdAccountRemark)
 				fb.GET("/campaigns", handlers.DefaultFbHandler.CampaignList)
+				fb.GET("/adsets", handlers.DefaultFbHandler.AdSetListAll)
+				fb.GET("/ads", handlers.DefaultFbHandler.AdListAll)
 				fb.GET("/campaigns/:id/adsets", handlers.DefaultFbHandler.AdSetList)
 				fb.GET("/adsets/:id/ads", handlers.DefaultFbHandler.AdList)
 				fb.GET("/bm-list", handlers.DefaultFbHandler.BmList)

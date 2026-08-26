@@ -518,7 +518,9 @@
         "optimizationGoal": "Optimization Goal",
         "billingEvent": "Billing Event",
         "creative": "Creative",
-        "effectiveStatus": "Effective Status"
+        "effectiveStatus": "Effective Status",
+        "campaignName": "Campaign",
+        "adsetName": "Ad Set"
       },
       "status": {
         "ACTIVE": "Active",

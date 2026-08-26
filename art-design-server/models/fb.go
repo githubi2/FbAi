@@ -215,6 +215,7 @@ type FbAdSet struct {
 	StartTime        string `json:"startTime"`
 	StopTime         string `json:"stopTime"`
 	CreatedTime      string `json:"createdTime"`
+	CampaignName     string `json:"campaignName"` // 所属系列名（账户级查询时填充）
 }
 
 // FbAdSetListResponse 广告组响应
@@ -233,6 +234,8 @@ type FbAd struct {
 	CreativeName    string `json:"creativeName"`
 	CreatedTime     string `json:"createdTime"`
 	UpdatedTime     string `json:"updatedTime"`
+	CampaignName    string `json:"campaignName"` // 所属系列名（账户级查询时填充）
+	AdsetName       string `json:"adsetName"`    // 所属广告组名（账户级查询时填充）
 }
 
 // FbAdListResponse 广告响应

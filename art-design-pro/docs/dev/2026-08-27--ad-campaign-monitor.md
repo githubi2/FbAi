@@ -42,6 +42,13 @@ Token 解析：`fb_ad_accounts_cache.ad_account_id` → `fb_token_id` → `fb_to
 3. **insights 空数据**：FB `/insights` 对部分账户返回空（数据源侧，非代码问题）→ 前端显示 —，符合设计。
 4. **"账户已停用"状态不来自 API**（2026-08-27 用户纠错）：FB API 的 campaign/adset/ad `status`/`effective_status` 对停用账户仍返回 ACTIVE；FB 后台"账户已停用"是其 UI 按**广告账户状态**计算的。修复：前端用所选账户的 `accountStatus != 1 || disableReason > 0` 推断（来自 ad-accounts/detail），状态列统一显示"账户已停用"（danger）。
 5. **直接切标签页无上下文 → 数据空**（2026-08-27 用户反馈）：`watch(activeTab)` 只在 activeCampaignId 已存在时加载，用户直接点"广告组/广告"标签时空白。修复：切 tab 自动取**第一行**作为下钻上下文（campaign→adset→ad 逐级），无需先点行内按钮。
+6. **广告组/广告数据不全——只按单个 campaign/adset 查询**（2026-08-27 用户纠错，第二轮）：原实现先查 campaign 再查其 adsets（只返回第一个系列的数据，广告漏掉另一半）。修复：改为**账户级聚合**——`GET /{act}/adsets`（一次取全部广告组，含 `campaign{id,name}` 归属）与 `GET /{act}/ads`（一次取全部广告，含 `campaign{id,name},adset{id,name}` 归属），与 FB 后台"广告组/广告"全量视图一致。新增 `GET /api/v1/fb/adsets?accountId=` / `GET /api/v1/fb/ads?accountId=` 端点（旧 campaign/adset 级端点保留兼容）。前端广告组/广告 tab 已改为账户级拉取，并新增"所属系列/所属广告组"列。
+
+### 官方文档状态依据（2026-08-27 实抓 v26.0 广告组字段表）
+
+- `effective_status` enum：`{ACTIVE, PAUSED, DELETED, CAMPAIGN_PAUSED, ARCHIVED, IN_PROCESS, WITH_ISSUES}` —— **不含 ACCOUNT_DISABLED**
+- `status`/`configured_status` enum：`{ACTIVE, PAUSED, DELETED, ARCHIVED}` —— 实体自身设置状态
+- **结论**：campaign/adset/ad 的状态枚举无法反映"账户停用"（实测停用账户下仍返回 ACTIVE）；"账户已停用"是 FB 后台 UI 按 **Ad Account 的 account_status**（1=活跃/2=禁用…）计算。本项目用 `accountStatus != 1 || disableReason > 0` 推断，符合官方口径。
 
 ## 验证
 

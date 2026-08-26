@@ -152,15 +152,19 @@ export function buildCampaignColumns({
 interface AdSetColsOptions {
   t: (key: string) => string
   isAccountDisabled: () => boolean
-  onViewAds: (row: FbAdSet) => void
 }
 export function buildAdSetColumns({
   t,
-  isAccountDisabled,
-  onViewAds
+  isAccountDisabled
 }: AdSetColsOptions): ColumnOption<FbAdSet>[] {
   const P = 'menus.adCampaign.columns'
   return [
+    {
+      prop: 'campaignName',
+      label: t(`${P}.campaignName`),
+      minWidth: 150,
+      formatter: (row: FbAdSet) => row.campaignName || '—'
+    },
     {
       prop: 'name',
       label: t(`${P}.name`),
@@ -206,18 +210,6 @@ export function buildAdSetColumns({
       label: t(`${P}.createdTime`),
       minWidth: 160,
       formatter: (row: FbAdSet) => row.createdTime || '—'
-    },
-    {
-      prop: 'operation',
-      label: t('menus.adCampaign.adTab'),
-      width: 80,
-      fixed: 'right',
-      formatter: (row: FbAdSet) =>
-        h(
-          ElButton,
-          { size: 'small', link: true, type: 'primary', onClick: () => onViewAds(row) },
-          () => t('menus.adCampaign.adTab')
-        )
     }
   ]
 }
@@ -228,6 +220,18 @@ export function buildAdColumns(
 ): ColumnOption<FbAd>[] {
   const P = 'menus.adCampaign.columns'
   return [
+    {
+      prop: 'campaignName',
+      label: t(`${P}.campaignName`),
+      minWidth: 140,
+      formatter: (row: FbAd) => row.campaignName || '—'
+    },
+    {
+      prop: 'adsetName',
+      label: t(`${P}.adsetName`),
+      minWidth: 140,
+      formatter: (row: FbAd) => row.adsetName || '—'
+    },
     {
       prop: 'name',
       label: t(`${P}.name`),

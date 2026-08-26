@@ -882,6 +882,48 @@ func (h *FbHandler) CampaignList(c *gin.Context) {
 	c.JSON(http.StatusOK, models.Success(result))
 }
 
+// AdSetListAll GET /api/v1/fb/adsets?accountId=act_xxx — 广告账户下全部广告组（账户级聚合）
+func (h *FbHandler) AdSetListAll(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+	accountID := c.Query("accountId")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少 accountId"))
+		return
+	}
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetAdSetsByAccount(userID, tenantID, accountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, models.Success(result))
+}
+
+// AdListAll GET /api/v1/fb/ads?accountId=act_xxx — 广告账户下全部广告（账户级聚合）
+func (h *FbHandler) AdListAll(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+	accountID := c.Query("accountId")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少 accountId"))
+		return
+	}
+	tenantID := getTenantID(c)
+	result, err := services.DefaultFbService.GetAdsByAccount(userID, tenantID, accountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, models.Success(result))
+}
+
 // AdSetList GET /api/v1/fb/campaigns/:id/adsets?accountId=act_xxx — 广告组列表
 func (h *FbHandler) AdSetList(c *gin.Context) {
 	userID := c.GetUint("userID")
