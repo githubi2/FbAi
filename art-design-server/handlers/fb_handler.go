@@ -1075,3 +1075,138 @@ func (h *FbHandler) UpdatePageRemark(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.Success(gin.H{"remark": req.Remark}))
 }
+
+// ==================== FB 像素 ====================
+
+// PixelList GET /api/v1/fb/pixels — 获取像素列表（缓存直出）
+func (h *FbHandler) PixelList(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	cached, _ := cacheService.GetCachedPixels(userID, tenantID)
+	if cached != nil && len(cached.List) > 0 {
+		c.JSON(http.StatusOK, models.Success(cached))
+		return
+	}
+
+	// 无缓存：返回空列表（前端触发刷新后轮询自动更新）
+	c.JSON(http.StatusOK, models.Success(&models.FbPixelListResponse{
+		List:  []models.FbPixelItem{},
+		Total: 0,
+	}))
+}
+
+// RefreshAllPixels POST /api/v1/fb/pixels/refresh-all — 显式触发后台刷新像素列表
+// 5 分钟冷却期内为 no-op；幂等，重复调用安全
+func (h *FbHandler) RefreshAllPixels(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	cacheService := services.DefaultFbCacheService
+
+	started := false
+	switch {
+	case cacheService.IsRefreshing(userID, tenantID, "pixels"):
+		// 已在刷新中
+	case cacheService.ShouldRefresh(userID, tenantID, "pixels", 5*time.Minute):
+		go h.refreshPixelsCache(userID, tenantID)
+		started = true
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"started": started}))
+}
+
+// refreshPixelsCache 异步刷新像素缓存
+func (h *FbHandler) refreshPixelsCache(userID uint, tenantID *uint) {
+	cacheService := services.DefaultFbCacheService
+
+	if cacheService.IsRefreshing(userID, tenantID, "pixels") {
+		return
+	}
+
+	refreshID, err := cacheService.StartRefresh(userID, tenantID, "pixels")
+	if err != nil {
+		log.Printf("[FB-HANDLER] 创建像素刷新任务失败: %v", err)
+		return
+	}
+
+	result, err := services.DefaultFbService.GetPixelList(userID, tenantID)
+	if err != nil {
+		cacheService.CompleteRefresh(refreshID, err.Error())
+		return
+	}
+
+	if err := cacheService.SavePixelsCache(userID, tenantID, result.List); err != nil {
+		log.Printf("[FB-HANDLER] 保存像素缓存失败: %v", err)
+	}
+
+	cacheService.CompleteRefresh(refreshID, "")
+}
+
+// UpdatePixelRemark PUT /api/v1/fb/pixels/:id/remark — 更新像素本地备注
+func (h *FbHandler) UpdatePixelRemark(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	pixelID := c.Param("id")
+	if pixelID == "" {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "缺少像素ID"))
+		return
+	}
+
+	var req struct {
+		Remark string `json:"remark" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "备注最长255字符"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	if err := services.DefaultFbCacheService.UpdatePixelRemark(userID, tenantID, pixelID, req.Remark); err != nil {
+		c.JSON(http.StatusInternalServerError, models.Error(models.CodeServerError, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"remark": req.Remark}))
+}
+
+// CreatePixel POST /api/v1/fb/pixels — 在指定广告账户下创建像素
+func (h *FbHandler) CreatePixel(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, models.Error(models.CodeUnauthorized, "用户未登录"))
+		return
+	}
+
+	var req struct {
+		AdAccountID string `json:"adAccountId" binding:"required"`
+		Name        string `json:"name" binding:"required,max=256"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, "广告账户和像素名称不能为空"))
+		return
+	}
+
+	tenantID := getTenantID(c)
+	pixelID, err := services.DefaultFbService.CreatePixel(userID, tenantID, req.AdAccountID, req.Name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.Error(models.CodeBadRequest, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Success(gin.H{"pixelId": pixelID}))
+}

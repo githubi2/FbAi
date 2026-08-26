@@ -52,12 +52,6 @@
         <ElButton v-ripple @click="handleBatchAction('addToBM')">{{
           $t('menus.adAccount.addToBM')
         }}</ElButton>
-        <ElButton v-ripple @click="handleBatchAction('setLimit')">{{
-          $t('menus.adAccount.setLimit')
-        }}</ElButton>
-        <ElButton v-ripple @click="handleBatchAction('resetLimit')">{{
-          $t('menus.adAccount.resetLimit')
-        }}</ElButton>
         <ElButton v-ripple @click="handleBatchAction('hideAdmin')">{{
           $t('menus.adAccount.hideAdmin')
         }}</ElButton>
@@ -74,6 +68,9 @@
             <ElButton @click="refreshData" v-ripple>{{
               $t('menus.adAccount.refreshAccounts')
             }}</ElButton>
+            <ElTag v-if="isRefreshing" type="warning" effect="plain">
+              {{ $t('menus.adAccount.refreshing') || '数据更新中...' }}
+            </ElTag>
           </ElSpace>
         </template>
       </ArtTableHeader>
@@ -101,8 +98,36 @@
       width="800px"
       destroy-on-close
     >
-      <ArtTable :loading="paymentLoading" :data="paymentRecords" :columns="paymentColumns" />
+      <ArtTable :loading="paymentLoading" :data="pagedPaymentRecords" :columns="paymentColumns" />
       <ElEmpty v-if="!paymentLoading && paymentRecords.length === 0" description="暂无支付记录" />
+      <div v-if="paymentRecords.length > 0" class="payment-pagination">
+        <ElPagination
+          v-model:current-page="paymentPage"
+          v-model:page-size="paymentPageSize"
+          :total="paymentRecords.length"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          background
+        />
+      </div>
+    </ElDialog>
+
+    <!-- 备注编辑弹窗 -->
+    <ElDialog v-model="remarkDialogVisible" :title="$t('menus.adAccount.editRemark')" width="420px">
+      <ElInput
+        v-model="remarkForm.remark"
+        type="textarea"
+        :rows="3"
+        maxlength="255"
+        show-word-limit
+        :placeholder="$t('menus.adAccount.remarkPlaceholder')"
+      />
+      <template #footer>
+        <ElButton @click="remarkDialogVisible = false">{{ $t('common.cancel') }}</ElButton>
+        <ElButton type="primary" :loading="remarkSaving" @click="handleSaveRemark">
+          {{ $t('common.confirm') }}
+        </ElButton>
+      </template>
     </ElDialog>
 
     <!-- 管理员详情弹窗 -->
@@ -163,13 +188,17 @@
 
     <!-- 删除授权弹窗 -->
     <DeleteAuthDialog v-model="deleteAuthDialogVisible" :selected-ad-accounts="selectedRows" />
+
+    <!-- 添加到BM弹窗 -->
+    <AddToBmDialog v-model="addToBmDialogVisible" :selected-ad-accounts="selectedRows" />
   </div>
 </template>
 
 <script setup lang="ts">
-  import { h, ref, reactive } from 'vue'
+  import { h, ref, reactive, computed, onMounted, onUnmounted } from 'vue'
   import AddAuthDialog from './components/AddAuthDialog.vue'
   import DeleteAuthDialog from './components/DeleteAuthDialog.vue'
+  import AddToBmDialog from './components/AddToBmDialog.vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import {
@@ -180,14 +209,71 @@
     ElDialog,
     ElMessage,
     ElCheckbox,
-    ElCheckboxGroup
+    ElCheckboxGroup,
+    ElIcon,
+    ElPagination
   } from 'element-plus'
+  import { Edit } from '@element-plus/icons-vue'
   import type { FbAdAccountDetail, FbPaymentRecord } from '@/api/facebook'
-  import { fetchFbAdAccountsDetail, fetchFbPaymentHistory } from '@/api/facebook'
+  import { fetchFbAdAccountsDetail, fetchFbPaymentHistory, fetchFbRefreshAdAccounts, fetchFbUpdateAdAccountRemark, fetchRefreshStatus } from '@/api/facebook'
 
   defineOptions({ name: 'AdAccountManage' })
 
   const { t } = useI18n()
+
+  // ==================== 刷新状态 ====================
+  const isRefreshing = ref(false)
+  let pollTimer: ReturnType<typeof setInterval> | null = null
+
+  // 开始轮询刷新状态
+  const startPolling = () => {
+    if (pollTimer) return
+    pollTimer = setInterval(async () => {
+      try {
+        const status = await fetchRefreshStatus('ad_accounts')
+        if (!status.isRunning) {
+          isRefreshing.value = false
+          stopPolling()
+          // 刷新完成，静默更新数据（不触发表格 loading，避免二次转圈）
+          silentReload()
+        }
+      } catch {
+        // 忽略轮询错误
+      }
+    }, 2000) // 每2秒检查一次
+  }
+
+  // 停止轮询
+  const stopPolling = () => {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  // 静默重载声明（具体定义在 useTable 之后，轮询回调运行时已完成初始化）
+  let silentReload: () => Promise<void> = async () => {}
+
+  // 页面加载流程（单向、职责清晰）：
+  // ① useTable immediate 自动请求详情 → 后端缓存直出 → 表格立即显示
+  // ② 显式触发后台刷新（5 分钟冷却期内为 no-op）
+  // ③ 若后台正在刷新 → 轮询状态 → 完成后 silentReload 静默替换数据
+  onMounted(async () => {
+    try {
+      await fetchFbRefreshAdAccounts()
+      const status = await fetchRefreshStatus('ad_accounts')
+      if (status.isRunning) {
+        isRefreshing.value = true
+        startPolling()
+      }
+    } catch {
+      // 后台刷新失败不影响数据展示
+    }
+  })
+
+  onUnmounted(() => {
+    stopPolling()
+  })
 
   // ==================== 多选 ====================
   const selectedRows = ref<FbAdAccountDetail[]>([])
@@ -210,6 +296,9 @@
       case 'deleteAuth':
         deleteAuthDialogVisible.value = true
         break
+      case 'addToBM':
+        addToBmDialogVisible.value = true
+        break
       default:
         console.log('Batch action:', action, selectedRows.value)
         break
@@ -219,6 +308,7 @@
   // ==================== 增加授权弹窗 ====================
   const addAuthDialogVisible = ref(false)
   const deleteAuthDialogVisible = ref(false)
+  const addToBmDialogVisible = ref(false)
 
   // ==================== 搜索筛选 ====================
   const searchForm = reactive({
@@ -264,16 +354,6 @@
       default:
         return { type: 'info' }
     }
-  }
-
-  // 支付方式格式化：提取卡类型+后四位
-  const formatPaymentMethod = (source: string) => {
-    if (!source) return '—'
-    const match = source.match(/([A-Za-z]+)\s+\*+\s*(\d+)/)
-    if (match) {
-      return `${match[1]} ····${match[2]}`
-    }
-    return source
   }
 
   // ==================== useTable — 客户端分页+筛选 ====================
@@ -363,8 +443,29 @@
           }
         },
         {
+          prop: 'remark',
+          label: t('menus.adAccount.columns.remark'),
+          minWidth: 140,
+          formatter: (row: FbAdAccountDetail) =>
+            h('div', { style: 'display:flex;align-items:center;gap:6px' }, [
+              h(
+                'span',
+                { style: row.remark ? '' : 'color:#999' },
+                row.remark || '—'
+              ),
+              h(
+                ElIcon,
+                {
+                  style: 'cursor:pointer;color:#409eff;font-size:14px',
+                  onClick: () => showEditRemark(row)
+                },
+                () => h(Edit)
+              )
+            ])
+        },
+        {
           prop: 'accountType',
-          label: t('menus.adAccount.columns.accountType'),
+          label: t('menus.adAccount.columns.accountCategory'),
           width: 85,
           formatter: (row: FbAdAccountDetail) => {
             if (row.businessName) return h(ElTag, { type: 'primary', size: 'small' }, () => '企业')
@@ -410,12 +511,6 @@
           }
         },
         {
-          prop: 'fundingSource',
-          label: t('menus.adAccount.columns.paymentMethod'),
-          minWidth: 150,
-          formatter: (row: FbAdAccountDetail) => formatPaymentMethod(row.fundingSource)
-        },
-        {
           prop: 'currency',
           label: t('menus.adAccount.columns.currency'),
           width: 75,
@@ -429,25 +524,35 @@
         },
         {
           prop: 'spendCap',
-          label: t('menus.adAccount.columns.dailyLimit'),
-          minWidth: 130,
+          label: t('menus.adAccount.columns.spendCap'),
+          minWidth: 120,
           formatter: (row: FbAdAccountDetail) => {
-            if (row.spendCap === 0)
+            if (!row.spendCap)
               return h('span', { style: { color: '#999' } }, t('menus.adAccount.unlimited'))
             return formatCurrency(row.spendCap, row.currency)
           }
         },
         {
-          prop: 'amountSpent',
-          label: t('menus.adAccount.columns.totalSpend'),
-          minWidth: 140,
+          prop: 'spentAmount',
+          label: t('menus.adAccount.columns.spentAmount'),
+          minWidth: 120,
           formatter: (row: FbAdAccountDetail) => formatCurrency(row.amountSpent, row.currency)
         },
         {
-          prop: 'spentAmount',
-          label: t('menus.adAccount.columns.spentAmount'),
-          minWidth: 140,
-          formatter: (row: FbAdAccountDetail) => formatCurrency(row.amountSpent, row.currency)
+          prop: 'isPrepay',
+          label: t('menus.adAccount.columns.accountType'),
+          minWidth: 100,
+          formatter: (row: FbAdAccountDetail) =>
+            row.isPrepay ? t('menus.adAccount.prepay') : t('menus.adAccount.postpay')
+        },
+        {
+          prop: 'ownerRole',
+          label: t('menus.adAccount.columns.ownerRole'),
+          minWidth: 110,
+          formatter: (row: FbAdAccountDetail) => {
+            if (!row.ownerRole) return '—'
+            return h('span', { style: { color: '#409eff', fontWeight: 500 } }, row.ownerRole)
+          }
         },
         {
           prop: 'disableReason',
@@ -495,12 +600,6 @@
           formatter: (row: FbAdAccountDetail) => row.businessName || '—'
         },
         {
-          prop: 'remark',
-          label: t('menus.adAccount.columns.remark'),
-          minWidth: 120,
-          formatter: () => '—'
-        },
-        {
           prop: 'paymentRecord',
           label: t('menus.adAccount.columns.paymentRecord'),
           width: 100,
@@ -519,6 +618,56 @@
       ]
     }
   })
+
+  // 静默重载：后台刷新完成后直接更新数据，不触发表格 loading（避免二次转圈）
+  silentReload = async () => {
+    try {
+      const res = await fetchDetail({
+        current: pagination.current,
+        size: pagination.size,
+        keyword: searchForm.keyword,
+        status: searchForm.status,
+        accountType: searchForm.accountType
+      })
+      data.value = res.list as any
+    } catch {
+      // 静默失败，保持现有数据
+    }
+  }
+
+  // ==================== 备注编辑 ====================
+  const remarkDialogVisible = ref(false)
+  const remarkSaving = ref(false)
+  const editingRemarkRow = ref<FbAdAccountDetail | null>(null)
+  const remarkForm = reactive({ remark: '' })
+
+  const showEditRemark = (row: FbAdAccountDetail) => {
+    editingRemarkRow.value = row
+    remarkForm.remark = row.remark || ''
+    remarkDialogVisible.value = true
+  }
+
+  const handleSaveRemark = async () => {
+    if (!editingRemarkRow.value) return
+    remarkSaving.value = true
+    const newRemark = remarkForm.remark.trim()
+    const targetId = editingRemarkRow.value.id
+    try {
+      await fetchFbUpdateAdAccountRemark(targetId, newRemark)
+      ElMessage.success(t('menus.adAccount.remarkUpdateSuccess'))
+      remarkDialogVisible.value = false
+      // 立即更新当前表格中对应行，无需刷新页面
+      editingRemarkRow.value.remark = newRemark
+      const row = (data.value as FbAdAccountDetail[]).find((r) => r.id === targetId)
+      if (row) row.remark = newRemark
+      // 后台静默同步一次完整数据
+      silentReload()
+    } catch {
+      // 错误提示由请求拦截器统一处理
+    } finally {
+      remarkSaving.value = false
+    }
+  }
 
   // ==================== 搜索/重置 ====================
   const handleSearch = () => {
@@ -544,60 +693,64 @@
   const paymentLoading = ref(false)
   const paymentRecords = ref<FbPaymentRecord[]>([])
   const curPaymentAccount = ref<FbAdAccountDetail | null>(null)
+  // 分页（客户端）
+  const paymentPage = ref(1)
+  const paymentPageSize = ref(10)
+  const pagedPaymentRecords = computed(() => {
+    const start = (paymentPage.value - 1) * paymentPageSize.value
+    return paymentRecords.value.slice(start, start + paymentPageSize.value)
+  })
 
-  const formatPayDate = (val: string) => {
+  const formatPayDateTime = (val: string) => {
     if (!val) return '—'
     const d = new Date(val)
     if (isNaN(d.getTime())) return val
     const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
   const paymentColumns = [
-    { type: 'index' as const, width: 50, label: '#' },
+    {
+      prop: 'id',
+      label: '交易编号',
+      minWidth: 260,
+      formatter: (row: FbPaymentRecord) => row.id || '—'
+    },
     {
       prop: 'time',
       label: '日期',
-      minWidth: 110,
-      formatter: (row: FbPaymentRecord) => formatPayDate(row.time)
-    },
-    {
-      prop: 'description',
-      label: '描述',
-      minWidth: 200,
-      formatter: (row: FbPaymentRecord) => row.description || '—'
+      minWidth: 150,
+      formatter: (row: FbPaymentRecord) => formatPayDateTime(row.time)
     },
     {
       prop: 'amount',
       label: '金额',
-      minWidth: 130,
+      minWidth: 120,
       formatter: (row: FbPaymentRecord) => formatCurrency(row.amount, row.currency)
-    },
-    {
-      prop: 'status',
-      label: '状态',
-      width: 90,
-      formatter: (row: FbPaymentRecord) => {
-        const type = row.status === 'success' ? ('success' as const) : ('info' as const)
-        return h(ElTag, { type, size: 'small' }, () => row.status || '—')
-      }
-    },
-    {
-      prop: 'billingStart',
-      label: '账单周期',
-      minWidth: 200,
-      formatter: (row: FbPaymentRecord) => {
-        const s = formatPayDate(row.billingStart)
-        const e = formatPayDate(row.billingEnd)
-        if (s === '—' && e === '—') return '—'
-        return `${s} ~ ${e}`
-      }
     },
     {
       prop: 'paymentMethod',
       label: '支付方式',
-      minWidth: 120,
+      minWidth: 130,
       formatter: (row: FbPaymentRecord) => row.paymentMethod || '—'
+    },
+    {
+      prop: 'status',
+      label: '支付状态',
+      width: 100,
+      formatter: (row: FbPaymentRecord) => {
+        const paid = ['已支付', '成功']
+        const danger = ['失败', '退单']
+        const warning = ['处理中']
+        const type = paid.includes(row.status)
+          ? ('success' as const)
+          : danger.includes(row.status)
+            ? ('danger' as const)
+            : warning.includes(row.status)
+              ? ('warning' as const)
+              : ('info' as const)
+        return h(ElTag, { type, size: 'small' }, () => row.status || '—')
+      }
     }
   ]
 
@@ -610,6 +763,7 @@
     try {
       const result = await fetchFbPaymentHistory(row.id)
       paymentRecords.value = result.records || []
+      paymentPage.value = 1
     } catch (e: any) {
       paymentRecords.value = []
       ElMessage.warning(e?.data?.msg || '支付记录暂不可用（需要 Facebook ads_read 权限）')
@@ -767,5 +921,11 @@
     .admin-interval-check {
       margin-top: 4px;
     }
+  }
+
+  .payment-pagination {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
   }
 </style>

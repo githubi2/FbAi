@@ -851,3 +851,156 @@ func (s *FbCacheService) UpdatePageRemark(userID uint, tenantID *uint, pageID, r
 
 	return nil
 }
+
+// ==================== FB 像素缓存 ====================
+
+// GetCachedPixels 从缓存表获取像素列表
+func (s *FbCacheService) GetCachedPixels(userID uint, tenantID *uint) (*models.FbPixelListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT c.pixel_id, c.name, c.ad_account_id, c.ad_account_name,
+		        c.owner_bm_id, c.owner_bm_name, c.creator_name, c.is_unavailable,
+		        c.creation_time, c.last_fired_time, c.role_names, c.admin_names, c.shared_agencies,
+		        c.remark, c.last_refresh_at, t.fb_user_name
+		 FROM fb_pixels_cache c
+		 JOIN fb_tokens t ON t.id = c.fb_token_id AND t.status = 1
+		 WHERE c.user_id = $1 AND c.tenant_id IS NOT DISTINCT FROM $2
+		 ORDER BY c.creation_time DESC NULLS LAST`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询像素缓存失败: %w", err)
+	}
+	defer rows.Close()
+
+	var list []models.FbPixelItem
+
+	for rows.Next() {
+		var (
+			item      models.FbPixelItem
+			rolesStr  string
+			adminsStr string
+			sharedStr string
+		)
+		if err := rows.Scan(
+			&item.PixelID, &item.Name, &item.AdAccountID, &item.AdAccountName,
+			&item.OwnerBmID, &item.OwnerBmName, &item.CreatorName, &item.IsUnavailable,
+			&item.CreationTime, &item.LastFiredTime, &rolesStr, &adminsStr, &sharedStr,
+			&item.Remark, &item.LastRefreshAt, &item.FbOwnerName,
+		); err != nil {
+			log.Printf("[FB-CACHE] 扫描像素缓存行失败: %v", err)
+			continue
+		}
+
+		if rolesStr != "" {
+			json.Unmarshal([]byte(rolesStr), &item.RoleNames)
+		}
+		if adminsStr != "" {
+			json.Unmarshal([]byte(adminsStr), &item.AdminNames)
+		}
+		if sharedStr != "" {
+			json.Unmarshal([]byte(sharedStr), &item.SharedAgencies)
+		}
+		if item.RoleNames == nil {
+			item.RoleNames = []string{}
+		}
+		if item.AdminNames == nil {
+			item.AdminNames = []string{}
+		}
+		if item.SharedAgencies == nil {
+			item.SharedAgencies = []string{}
+		}
+
+		list = append(list, item)
+	}
+
+	if list == nil {
+		list = []models.FbPixelItem{}
+	}
+
+	return &models.FbPixelListResponse{
+		List:  list,
+		Total: len(list),
+	}, nil
+}
+
+// SavePixelsCache 保存像素列表到缓存表（upsert 不覆盖 remark 本地字段）
+func (s *FbCacheService) SavePixelsCache(userID uint, tenantID *uint, pixels []models.FbPixelItem) error {
+	if db.Pool == nil {
+		return fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	now := time.Now()
+
+	for _, px := range pixels {
+		tokenID := int(px.TokenID)
+		if tokenID == 0 || px.PixelID == "" {
+			continue
+		}
+		rolesJSON, _ := json.Marshal(px.RoleNames)
+		adminsJSON, _ := json.Marshal(px.AdminNames)
+		sharedJSON, _ := json.Marshal(px.SharedAgencies)
+
+		_, err := db.Pool.Exec(ctx,
+			`INSERT INTO fb_pixels_cache
+				(user_id, tenant_id, fb_token_id, pixel_id, name,
+				 ad_account_id, ad_account_name, owner_bm_id, owner_bm_name, creator_name,
+				 is_unavailable, creation_time, last_fired_time,
+				 role_names, admin_names, shared_agencies, last_refresh_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+			ON CONFLICT (fb_token_id, pixel_id) DO UPDATE SET
+				name = EXCLUDED.name,
+				ad_account_id = EXCLUDED.ad_account_id,
+				ad_account_name = EXCLUDED.ad_account_name,
+				owner_bm_id = EXCLUDED.owner_bm_id,
+				owner_bm_name = EXCLUDED.owner_bm_name,
+				creator_name = EXCLUDED.creator_name,
+				is_unavailable = EXCLUDED.is_unavailable,
+				creation_time = EXCLUDED.creation_time,
+				last_fired_time = EXCLUDED.last_fired_time,
+				role_names = EXCLUDED.role_names,
+				admin_names = EXCLUDED.admin_names,
+				shared_agencies = EXCLUDED.shared_agencies,
+				last_refresh_at = EXCLUDED.last_refresh_at,
+				updated_at = EXCLUDED.updated_at`,
+			userID, tenantID, tokenID, px.PixelID, px.Name,
+			px.AdAccountID, px.AdAccountName, px.OwnerBmID, px.OwnerBmName, px.CreatorName,
+			px.IsUnavailable, px.CreationTime, px.LastFiredTime,
+			string(rolesJSON), string(adminsJSON), string(sharedJSON), now, now,
+		)
+		if err != nil {
+			log.Printf("[FB-CACHE] 保存像素缓存失败 (token_id=%d, pixel=%s): %v", tokenID, px.PixelID, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// UpdatePixelRemark 更新像素的本地备注（仅存缓存表，FB 刷新不覆盖）
+func (s *FbCacheService) UpdatePixelRemark(userID uint, tenantID *uint, pixelID, remark string) error {
+	if db.Pool == nil {
+		return fmt.Errorf("数据库未连接")
+	}
+
+	ctx := context.Background()
+	tag, err := db.Pool.Exec(ctx,
+		`UPDATE fb_pixels_cache
+		 SET remark = $3, updated_at = NOW()
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND pixel_id = $4`,
+		userID, tenantID, remark, pixelID,
+	)
+	if err != nil {
+		return fmt.Errorf("更新备注失败: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("像素不存在，请先刷新列表")
+	}
+
+	return nil
+}

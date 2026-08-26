@@ -470,6 +470,43 @@
         "operation": "操作"
       }
     },
+    "pixelManage": {
+      "title": "像素管理",
+      "list": "像素列表",
+      "createPixel": "创建像素",
+      "refreshPixels": "刷新像素",
+      "refreshing": "数据更新中...",
+      "noPixels": "暂无像素数据，可在右上角创建像素",
+      "searchKeyword": "搜索关键词",
+      "activePlaceholder": "请选择活跃状态",
+      "activeYes": "活跃",
+      "activeNo": "未使用",
+      "unavailable": "不可用",
+      "sharedYes": "已分享",
+      "sharedNo": "未分享",
+      "selectAdAccount": "选择广告账户",
+      "pixelName": "像素名称",
+      "pixelNamePlaceholder": "请输入像素名称",
+      "createSuccess": "像素创建成功",
+      "editRemark": "编辑备注",
+      "remarkPlaceholder": "请输入备注",
+      "remarkUpdateSuccess": "备注更新成功",
+      "columns": {
+        "pixel": "像素",
+        "ownerBm": "所属BM",
+        "owner": "所有者",
+        "remark": "备注",
+        "role": "角色",
+        "shared": "分享",
+        "bmShared": "BM分享",
+        "adAccount": "广告账号",
+        "admin": "管理员",
+        "partners": "合作伙伴",
+        "active": "活跃",
+        "activeTime": "活跃时间",
+        "operation": "操作"
+      }
+    },
     "addAuth": {
       "selectAuthType": "选择权限类型",
       "authorizeAdmin": "授权管理员",

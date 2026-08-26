@@ -58,6 +58,9 @@
             <ElButton @click="handleConnectFb" v-ripple>
               {{ $t('menus.adAccount.connectFb') }}
             </ElButton>
+            <ElTag v-if="isRefreshing" type="warning" effect="plain">
+              {{ $t('menus.adAccount.refreshing') || '数据更新中...' }}
+            </ElTag>
           </ElSpace>
         </template>
       </ArtTableHeader>
@@ -168,12 +171,61 @@
     fetchFbDisconnectAccount,
     fetchFbUpdateLabel,
     fetchFbRefreshStats,
+    fetchFbRefreshAccounts,
+    fetchRefreshStatus,
     type FbAccount
   } from '@/api/facebook'
 
   defineOptions({ name: 'AdAccount' })
 
   const { t } = useI18n()
+
+  // ==================== 刷新状态 ====================
+  const isRefreshing = ref(false)
+  let refreshPollTimer: ReturnType<typeof setInterval> | null = null
+
+  // 开始轮询刷新状态
+  const startRefreshPolling = () => {
+    if (refreshPollTimer) return
+    refreshPollTimer = setInterval(async () => {
+      try {
+        const status = await fetchRefreshStatus('accounts')
+        if (!status.isRunning) {
+          isRefreshing.value = false
+          stopRefreshPolling()
+          // 刷新完成，静默更新数据（不触发表格 loading，避免二次转圈）
+          silentReload()
+        }
+      } catch {
+        // 忽略轮询错误
+      }
+    }, 2000) // 每2秒检查一次
+  }
+
+  // 停止轮询
+  const stopRefreshPolling = () => {
+    if (refreshPollTimer) {
+      clearInterval(refreshPollTimer)
+      refreshPollTimer = null
+    }
+  }
+
+  // 页面加载流程（单向、职责清晰）：
+  // ① useTable immediate 自动请求列表 → 后端缓存直出 → 表格立即显示
+  // ② 显式触发后台刷新（5 分钟冷却期内为 no-op）
+  // ③ 若后台正在刷新 → 轮询状态 → 完成后 silentReload 静默替换数据
+  onMounted(async () => {
+    try {
+      await fetchFbRefreshAccounts()
+      const status = await fetchRefreshStatus('accounts')
+      if (status.isRunning) {
+        isRefreshing.value = true
+        startRefreshPolling()
+      }
+    } catch {
+      // 后台刷新失败不影响数据展示
+    }
+  })
 
   // ==================== 搜索筛选 ====================
   const searchForm = reactive({
@@ -390,10 +442,31 @@
             ])
         }
       ]
+    },
+    hooks: {
+      onSuccess: (list: FbAccount[], response: any) => {
+        totalAccounts.value = response?.total ?? list?.length ?? 0
+      }
     }
   })
 
-  const totalAccounts = computed(() => pagination.total)
+  const totalAccounts = ref(0)
+
+  // 静默重载：后台刷新完成后直接更新数据，不触发表格 loading（避免二次转圈）
+  const silentReload = async () => {
+    try {
+      const res = await fetchAccounts({
+        current: pagination.current,
+        size: pagination.size,
+        keyword: searchForm.keyword,
+        status: searchForm.status
+      })
+      data.value = res.list as any
+      totalAccounts.value = res.total
+    } catch {
+      // 静默失败，保持现有数据
+    }
+  }
 
   // ==================== 搜索/重置 ====================
   const handleSearch = () => {
@@ -518,7 +591,10 @@
       await fetchFbUpdateLabel(editingAccount.value.id, labelForm.label)
       ElMessage.success(t('menus.adAccount.labelUpdateSuccess'))
       showLabelDialog.value = false
-      await refreshData()
+      // 立即更新当前行，无需刷新页面
+      editingAccount.value.label = labelForm.label
+      // 后台静默同步完整数据
+      refreshData()
     } catch {
       ElMessage.error('操作失败')
     }
@@ -550,12 +626,11 @@
   }
 
   // ==================== 生命周期 ====================
-  onMounted(async () => {
-    await refreshData()
-  })
-
+  // 注意：useTable immediate=true 会在挂载时自动请求列表，这里不要再手动 refreshData，
+  // 否则每次进页面会重复请求两次 accounts 接口
   onUnmounted(() => {
     stopPolling()
+    stopRefreshPolling()
   })
 </script>
 

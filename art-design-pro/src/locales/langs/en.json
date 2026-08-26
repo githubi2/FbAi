@@ -470,6 +470,43 @@
         "operation": "Actions"
       }
     },
+    "pixelManage": {
+      "title": "Pixel Management",
+      "list": "Pixel List",
+      "createPixel": "Create Pixel",
+      "refreshPixels": "Refresh Pixels",
+      "refreshing": "Updating data...",
+      "noPixels": "No pixels yet. Create one from the top-right button.",
+      "searchKeyword": "Search keyword",
+      "activePlaceholder": "Select active status",
+      "activeYes": "Active",
+      "activeNo": "Unused",
+      "unavailable": "Unavailable",
+      "sharedYes": "Shared",
+      "sharedNo": "Not shared",
+      "selectAdAccount": "Select ad account",
+      "pixelName": "Pixel name",
+      "pixelNamePlaceholder": "Enter pixel name",
+      "createSuccess": "Pixel created",
+      "editRemark": "Edit Remark",
+      "remarkPlaceholder": "Enter remark",
+      "remarkUpdateSuccess": "Remark updated",
+      "columns": {
+        "pixel": "Pixel",
+        "ownerBm": "Owner BM",
+        "owner": "Owner",
+        "remark": "Remark",
+        "role": "Role",
+        "shared": "Shared",
+        "bmShared": "BM Shared",
+        "adAccount": "Ad Account",
+        "admin": "Admins",
+        "partners": "Partners",
+        "active": "Active",
+        "activeTime": "Last Fired",
+        "operation": "Actions"
+      }
+    },
     "addAuth": {
       "selectAuthType": "Select permission type",
       "authorizeAdmin": "Authorize Administrator",

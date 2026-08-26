@@ -167,6 +167,35 @@ type FbPageListResponse struct {
 	Total int          `json:"total"`
 }
 
+// ==================== FB 像素 ====================
+
+// FbPixelItem 像素列表项
+type FbPixelItem struct {
+	PixelID        string     `json:"pixelId"`
+	Name           string     `json:"name"`
+	AdAccountID    string     `json:"adAccountId"`   // 所属广告账号 act_xxx
+	AdAccountName  string     `json:"adAccountName"` // 所属广告账号名称
+	OwnerBmID      string     `json:"ownerBmId"`
+	OwnerBmName    string     `json:"ownerBmName"`
+	CreatorName    string     `json:"creatorName"`
+	IsUnavailable  int        `json:"isUnavailable"` // 1=不可用 0=正常
+	CreationTime   *time.Time `json:"creationTime"`
+	LastFiredTime  *time.Time `json:"lastFiredTime"` // 最近一次上报事件时间
+	RoleNames      []string   `json:"roleNames"`     // 当前用户在像素上的角色
+	AdminNames     []string   `json:"adminNames"`
+	SharedAgencies []string   `json:"sharedAgencies"` // 共享合作伙伴名单
+	Remark         string     `json:"remark"`         // 本地字段：备注
+	LastRefreshAt  *time.Time `json:"lastRefreshAt"`
+	FbOwnerName    string     `json:"fbOwnerName"` // 所属 FB 账号名
+	TokenID        uint       `json:"-"`           // 所属 fb_tokens.id（内部缓存用，不返回前端）
+}
+
+// FbPixelListResponse 像素列表响应
+type FbPixelListResponse struct {
+	List  []FbPixelItem `json:"list"`
+	Total int           `json:"total"`
+}
+
 // FbAdAccountListResponse 广告账户列表响应
 type FbAdAccountListResponse struct {
 	AdAccounts []FbAdAccount       `json:"adAccounts"`

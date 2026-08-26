@@ -2516,3 +2516,257 @@ func (s *FbService) GetPageList(userID uint, tenantID *uint) (*models.FbPageList
 		Total: len(allPages),
 	}, nil
 }
+
+// ==================== FB 像素 ====================
+
+// parseFbTime 解析 FB ISO8601 时间（如 2024-01-02T15:04:05+0000）
+func parseFbTime(s string) *time.Time {
+	if s == "" {
+		return nil
+	}
+	if t, err := time.Parse("2006-01-02T15:04:05-0700", s); err == nil {
+		return &t
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return &t
+	}
+	return nil
+}
+
+// GetPixelList 获取所有已授权 FB 账号下各广告账户的像素列表
+// 数据源：/{act}/adspixels（需 ads_read/ads_management，无权限的广告账户跳过并记录）
+func (s *FbService) GetPixelList(userID uint, tenantID *uint) (*models.FbPixelListResponse, error) {
+	if db.Pool == nil {
+		return nil, fmt.Errorf("数据库未连接")
+	}
+
+	s.init()
+
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id, fb_user_id, fb_user_name, access_token
+		 FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询 FB token 失败: %w", err)
+	}
+	defer rows.Close()
+
+	type tokenRow struct {
+		id    uint
+		fbUid string
+		fbNam string
+		token string
+	}
+	var tokens []tokenRow
+	for rows.Next() {
+		var tr tokenRow
+		if err := rows.Scan(&tr.id, &tr.fbUid, &tr.fbNam, &tr.token); err != nil {
+			continue
+		}
+		tokens = append(tokens, tr)
+	}
+
+	var allPixels []models.FbPixelItem
+
+	for _, tr := range tokens {
+		// 该 FB 账号下的广告账户
+		actResp, err := s.fbGet(
+			fmt.Sprintf("/%s/me/adaccounts", s.graphVer),
+			map[string]string{
+				"fields":       "id,name",
+				"access_token": tr.token,
+				"limit":        "100",
+			},
+		)
+		if err != nil {
+			log.Printf("[FB-PIXEL] 获取广告账户失败 (fbUserId=%s): %v", tr.fbUid, err)
+			continue
+		}
+
+		acts, _ := actResp["data"].([]interface{})
+		for _, a := range acts {
+			act, ok := a.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			actID := getString(act, "id")
+			actName := getString(act, "name")
+			if actID == "" {
+				continue
+			}
+
+			// 该广告账户下的像素（无 ads 权限的账户会报错，跳过即可）
+			pxResp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/adspixels", s.graphVer, actID),
+				map[string]string{
+					"fields": "id,name,creation_time,last_fired_time,is_unavailable," +
+						"owner_business,creator",
+					"access_token": tr.token,
+					"limit":        "100",
+				},
+			)
+			if err != nil {
+				log.Printf("[FB-PIXEL] 获取像素失败 (act=%s): %v", actID, err)
+				continue
+			}
+
+			pxData, _ := pxResp["data"].([]interface{})
+			for _, p := range pxData {
+				px, ok := p.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				pixelID := getString(px, "id")
+				if pixelID == "" {
+					continue
+				}
+
+				item := models.FbPixelItem{
+					PixelID:       pixelID,
+					Name:          getString(px, "name"),
+					AdAccountID:   actID,
+					AdAccountName: actName,
+					FbOwnerName:   tr.fbNam,
+					CreationTime:  parseFbTime(getString(px, "creation_time")),
+					LastFiredTime: parseFbTime(getString(px, "last_fired_time")),
+					TokenID:       tr.id,
+				}
+				if un, ok := px["is_unavailable"].(bool); ok && un {
+					item.IsUnavailable = 1
+				}
+				if biz, ok := px["owner_business"].(map[string]interface{}); ok {
+					item.OwnerBmID = getString(biz, "id")
+					item.OwnerBmName = getString(biz, "name")
+				}
+				if creator, ok := px["creator"].(map[string]interface{}); ok {
+					item.CreatorName = getString(creator, "name")
+				}
+
+				// 以下边需要 BM 上下文，仅在像素归属 BM 时尝试；失败容忍
+				if item.OwnerBmID != "" {
+					// 像素上分配的用户（管理员/角色）
+					auResp, auErr := s.fbGet(
+						fmt.Sprintf("/%s/%s/assigned_users", s.graphVer, pixelID),
+						map[string]string{
+							"fields":       "name,role",
+							"business":     item.OwnerBmID,
+							"access_token": tr.token,
+							"limit":        "100",
+						},
+					)
+					if auErr == nil {
+						if auData, ok := auResp["data"].([]interface{}); ok {
+							for _, u := range auData {
+								if au, ok := u.(map[string]interface{}); ok {
+									if n := getString(au, "name"); n != "" {
+										item.AdminNames = append(item.AdminNames, n)
+									}
+									if r := getString(au, "role"); r != "" {
+										item.RoleNames = append(item.RoleNames, r)
+									}
+								}
+							}
+						}
+					} else {
+						log.Printf("[FB-PIXEL] 获取像素分配用户失败 (pixel=%s): %v", pixelID, auErr)
+					}
+
+					// 共享给的合作伙伴（agency）
+					saResp, saErr := s.fbGet(
+						fmt.Sprintf("/%s/%s/shared_agencies", s.graphVer, pixelID),
+						map[string]string{
+							"fields":       "name",
+							"business":     item.OwnerBmID,
+							"access_token": tr.token,
+							"limit":        "100",
+						},
+					)
+					if saErr == nil {
+						if saData, ok := saResp["data"].([]interface{}); ok {
+							for _, ag := range saData {
+								if am, ok := ag.(map[string]interface{}); ok {
+									if n := getString(am, "name"); n != "" {
+										item.SharedAgencies = append(item.SharedAgencies, n)
+									}
+								}
+							}
+						}
+					} else {
+						log.Printf("[FB-PIXEL] 获取像素共享伙伴失败 (pixel=%s): %v", pixelID, saErr)
+					}
+				}
+
+				allPixels = append(allPixels, item)
+			}
+		}
+	}
+
+	if allPixels == nil {
+		allPixels = []models.FbPixelItem{}
+	}
+
+	return &models.FbPixelListResponse{
+		List:  allPixels,
+		Total: len(allPixels),
+	}, nil
+}
+
+// CreatePixel 在指定广告账户下创建像素（POST /{act}/adspixels）
+// 逐个尝试该用户已启用的 FB token，第一个成功的为准
+func (s *FbService) CreatePixel(userID uint, tenantID *uint, adAccountID, name string) (string, error) {
+	if db.Pool == nil {
+		return "", fmt.Errorf("数据库未连接")
+	}
+	if adAccountID == "" || name == "" {
+		return "", fmt.Errorf("广告账户和像素名称不能为空")
+	}
+
+	s.init()
+
+	ctx := context.Background()
+	rows, err := db.Pool.Query(ctx,
+		`SELECT access_token FROM fb_tokens
+		 WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND status = 1`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return "", fmt.Errorf("查询 FB token 失败: %w", err)
+	}
+	defer rows.Close()
+
+	var tokens []string
+	for rows.Next() {
+		var tk string
+		if err := rows.Scan(&tk); err != nil {
+			continue
+		}
+		tokens = append(tokens, tk)
+	}
+	if len(tokens) == 0 {
+		return "", fmt.Errorf("没有已启用的 FB 账号，请先连接 Facebook")
+	}
+
+	var lastErr error
+	for _, tk := range tokens {
+		resp, err := s.fbPost(
+			fmt.Sprintf("/%s/%s/adspixels", s.graphVer, adAccountID),
+			map[string]string{
+				"name":         name,
+				"access_token": tk,
+			},
+		)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if id := getString(resp, "id"); id != "" {
+			return id, nil
+		}
+		lastErr = fmt.Errorf("Facebook 未返回像素 ID")
+	}
+
+	return "", fmt.Errorf("创建像素失败: %v", lastErr)
+}

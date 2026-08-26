@@ -313,7 +313,7 @@ export interface FbRefreshStatusResponse {
 
 /** 获取刷新状态 */
 export function fetchRefreshStatus(
-  type: 'accounts' | 'ad_accounts' | 'bm' | 'pages' | 'all' = 'all'
+  type: 'accounts' | 'ad_accounts' | 'bm' | 'pages' | 'pixels' | 'all' = 'all'
 ) {
   return request.get<FbRefreshStatusResponse>({
     url: '/api/v1/fb/refresh-status',
@@ -457,5 +457,80 @@ export function fetchFbUpdatePageRemark(pageId: string, remark: string) {
   return request.put<{ remark: string }>({
     url: `/api/v1/fb/pages/${pageId}/remark`,
     data: { remark }
+  })
+}
+
+// ==================== FB 像素 ====================
+
+/**
+ * 像素列表项
+ * 角色/管理员/合作伙伴依赖像素归属 BM（assigned_users/shared_agencies 边），
+ * 未归属 BM 的像素这些字段为空
+ */
+export interface FbPixelItem {
+  pixelId: string
+  name: string
+  /** 所属广告账号 act_xxx */
+  adAccountId: string
+  /** 所属广告账号名称 */
+  adAccountName: string
+  ownerBmId: string
+  ownerBmName: string
+  /** 创建者名称 */
+  creatorName: string
+  /** 1=不可用 0=正常 */
+  isUnavailable: number
+  /** 像素创建时间 */
+  creationTime: string | null
+  /** 最近一次上报事件时间 */
+  lastFiredTime: string | null
+  /** 当前用户在像素上的角色 */
+  roleNames: string[]
+  /** 管理员名单 */
+  adminNames: string[]
+  /** 共享合作伙伴名单 */
+  sharedAgencies: string[]
+  /** 本地备注 */
+  remark: string
+  /** 所属 FB 账号名 */
+  fbOwnerName: string
+  lastRefreshAt: string | null
+}
+
+/** 像素列表响应 */
+export interface FbPixelListResponse {
+  list: FbPixelItem[]
+  total: number
+}
+
+/** 获取像素列表（后端缓存直出，毫秒级） */
+export function fetchFbPixels() {
+  return request.get<FbPixelListResponse>({
+    url: '/api/v1/fb/pixels',
+    showErrorMessage: true
+  })
+}
+
+/** 触发后台刷新像素列表（5分钟冷却期内为 no-op，幂等） */
+export function fetchFbRefreshPixels() {
+  return request.post<{ started: boolean }>({
+    url: '/api/v1/fb/pixels/refresh-all'
+  })
+}
+
+/** 更新像素本地备注 */
+export function fetchFbUpdatePixelRemark(pixelId: string, remark: string) {
+  return request.put<{ remark: string }>({
+    url: `/api/v1/fb/pixels/${pixelId}/remark`,
+    data: { remark }
+  })
+}
+
+/** 在指定广告账户下创建像素 */
+export function fetchFbCreatePixel(adAccountId: string, name: string) {
+  return request.post<{ pixelId: string }>({
+    url: '/api/v1/fb/pixels',
+    data: { adAccountId, name },
+    showErrorMessage: true
   })
 }
