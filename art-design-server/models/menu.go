@@ -28,10 +28,10 @@ type CreateMenuRequest struct {
 	Path      string `json:"path" binding:"max=128"`
 	Component string `json:"component" binding:"max=128"`
 	Icon      string `json:"icon" binding:"max=64"`
-	SortOrder int    `json:"sort"`
-	MenuType  string `json:"menuType"`
+	SortOrder int    `json:"sort" binding:"gte=0"`
+	MenuType  string `json:"menuType" binding:"omitempty,oneof=directory menu button"`
 	Hidden    *bool  `json:"hidden"`
-	Status    int    `json:"status"`
+	Status    int    `json:"status" binding:"oneof=0 1"`
 }
 
 // UpdateMenuRequest 更新菜单请求
@@ -43,10 +43,10 @@ type UpdateMenuRequest struct {
 	Path      string `json:"path" binding:"max=128"`
 	Component string `json:"component" binding:"max=128"`
 	Icon      string `json:"icon" binding:"max=64"`
-	SortOrder int    `json:"sort"`
-	MenuType  string `json:"menuType"`
+	SortOrder int    `json:"sort" binding:"gte=0"`
+	MenuType  string `json:"menuType" binding:"omitempty,oneof=directory menu button"`
 	Hidden    *bool  `json:"hidden"`
-	Status    int    `json:"status"`
+	Status    int    `json:"status" binding:"oneof=0 1"`
 }
 
 // MenuTree 菜单树节点（用于前端动态路由）

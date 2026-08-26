@@ -20,7 +20,7 @@ type CreateRoleRequest struct {
 	RoleName      string  `json:"roleName" binding:"required,min=2,max=64"`
 	RoleCode      string  `json:"roleCode" binding:"required,min=2,max=32"`
 	Description   string  `json:"description" binding:"max=256"`
-	Status        int     `json:"status"`
+	Status        int     `json:"status" binding:"oneof=0 1"`
 	MenuIDs       []int64 `json:"menuIds"`
 	PermissionIDs []uint  `json:"permissionIds"`
 	TenantID      *uint   `json:"tenantId"`
@@ -32,7 +32,7 @@ type UpdateRoleRequest struct {
 	RoleName      string  `json:"roleName" binding:"required,min=2,max=64"`
 	RoleCode      string  `json:"roleCode" binding:"required,min=2,max=32"`
 	Description   string  `json:"description" binding:"max=256"`
-	Status        int     `json:"status"`
+	Status        int     `json:"status" binding:"oneof=0 1"`
 	MenuIDs       []int64 `json:"menuIds"`
 	PermissionIDs []uint  `json:"permissionIds"`
 }

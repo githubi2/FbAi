@@ -27,9 +27,9 @@ type CreateUserRequest struct {
 	Email    string `json:"userEmail" binding:"omitempty,email"`
 	Phone    string `json:"userPhone" binding:"max=20"`
 	Avatar   string `json:"avatar" binding:"max=256"`
-	Status   int    `json:"status"`
-	RoleID   uint   `json:"roleId"`
-	TenantID *uint  `json:"tenantId"`
+	Status   int   `json:"status" binding:"oneof=0 1"`
+	RoleID   uint  `json:"roleId" binding:"required,gt=0"`
+	TenantID *uint `json:"tenantId"`
 }
 
 // UpdateUserRequest 更新用户请求
@@ -39,9 +39,9 @@ type UpdateUserRequest struct {
 	Email    string `json:"userEmail" binding:"omitempty,email"`
 	Phone    string `json:"userPhone" binding:"max=20"`
 	Avatar   string `json:"avatar" binding:"max=256"`
-	Status   int    `json:"status"`
-	RoleID   uint   `json:"roleId"`
-	Password string `json:"password"` // 可选：非空时修改密码
+	Status   int    `json:"status" binding:"oneof=0 1"`
+	RoleID   uint   `json:"roleId" binding:"required,gt=0"`
+	Password string `json:"password" binding:"omitempty,min=6,max=32"` // 可选：非空时修改密码
 }
 
 // LoginRequest 登录请求

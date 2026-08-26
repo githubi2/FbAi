@@ -22,7 +22,7 @@ type CreateTenantRequest struct {
 	Code         string `json:"code" binding:"required,min=2,max=64"`
 	ContactName  string `json:"contactName" binding:"max=64"`
 	ContactPhone string `json:"contactPhone" binding:"max=20"`
-	ContactEmail string `json:"contactEmail" binding:"max=128"`
+	ContactEmail string `json:"contactEmail" binding:"omitempty,email,max=128"`
 	Description  string `json:"description" binding:"max=256"`
 
 	// 租户管理员账号（创建时手动输入）
@@ -37,9 +37,9 @@ type UpdateTenantRequest struct {
 	Name         string `json:"name" binding:"required,min=2,max=128"`
 	ContactName  string `json:"contactName" binding:"max=64"`
 	ContactPhone string `json:"contactPhone" binding:"max=20"`
-	ContactEmail string `json:"contactEmail" binding:"max=128"`
+	ContactEmail string `json:"contactEmail" binding:"omitempty,email,max=128"`
 	Description  string `json:"description" binding:"max=256"`
-	Status       int    `json:"status"`
+	Status       int    `json:"status" binding:"oneof=0 1"`
 }
 
 // TenantSwitchRequest 租户切换请求
