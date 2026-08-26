@@ -7,9 +7,10 @@
     "pnpm": ">=8.8.0"
   },
   "scripts": {
-    "dev": "vite --open",
+    "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "serve": "vite preview",
+    "start:prod": "vite build && vite preview --port 3006 --strictPort",
     "lint": "eslint",
     "fix": "eslint --fix",
     "lint:prettier": "prettier --write \"**/*.{js,cjs,ts,json,tsx,css,less,scss,vue,html,md}\"",

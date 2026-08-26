@@ -32,6 +32,25 @@ export default ({ mode }: { mode: string }) => {
           changeOrigin: true
         }
       },
+      host: true,
+      // 启动时预编译核心页面模块，避免冷启动后首次访问逐模块编译导致的长时间白屏
+      warmup: {
+        clientFiles: [
+          './src/main.ts',
+          './src/views/ad-account/index.vue',
+          './src/views/ad-account/manage/index.vue',
+          './src/views/system/user/index.vue'
+        ]
+      }
+    },
+    // vite preview（生产构建预览）同样需要代理 /api 到 Go 后端
+    preview: {
+      proxy: {
+        '/api': {
+          target: VITE_API_PROXY_URL || 'http://localhost:9090',
+          changeOrigin: true
+        }
+      },
       host: true
     },
     // 路径别名

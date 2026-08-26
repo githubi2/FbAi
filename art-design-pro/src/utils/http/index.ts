@@ -20,10 +20,6 @@ import { ApiStatus } from './status'
 import { HttpError, handleError, showError, showSuccess } from './error'
 import { $t } from '@/locales'
 import { BaseResponse } from '@/types'
-import { fbRateLimiter } from './rateLimiter'
-
-/** FB 接口前缀，命中此前缀的请求自动走限速队列 */
-const FB_API_PREFIX = '/api/v1/fb/'
 
 /** 请求配置常量 */
 const REQUEST_TIMEOUT = 15000
@@ -178,9 +174,6 @@ async function request<T = any>(config: ExtendedAxiosRequestConfig): Promise<T> 
     config.params = undefined
   }
 
-  const url = config.url || ''
-  const isFbEndpoint = url.startsWith(FB_API_PREFIX)
-
   /** 实际发起 Axios 请求的逻辑 */
   const doRequest = async (): Promise<T> => {
     try {
@@ -201,11 +194,9 @@ async function request<T = any>(config: ExtendedAxiosRequestConfig): Promise<T> 
     }
   }
 
-  // FB 端点走限速队列，确保请求间隔 >= 最小间隔
-  if (isFbEndpoint) {
-    return fbRateLimiter.schedule(doRequest, url, config.signal)
-  }
-
+  // 注意：FB 端点不再走前端限速队列。
+  // 所有 /api/v1/fb/ 接口均为本地后端缓存读取（毫秒级），
+  // 真正的 FB API 调用由后端单个后台任务串行执行，前端限速只会造成请求排队卡顿。
   return doRequest()
 }
 
