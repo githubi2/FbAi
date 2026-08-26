@@ -125,10 +125,7 @@
           </ElTable>
         </template>
 
-        <ElEmpty
-          v-if="!submitResult"
-          :description="$t('menus.addAuth.noResultYet')"
-        />
+        <ElEmpty v-if="!submitResult" :description="$t('menus.addAuth.noResultYet')" />
       </div>
     </div>
 
@@ -247,7 +244,9 @@
       if (failedCount === 0) {
         ElMessage.success(t('menus.addToBm.successMsg', { count: successCount }))
       } else if (successCount > 0) {
-        ElMessage.warning(t('menus.addToBm.partialMsg', { success: successCount, failed: failedCount }))
+        ElMessage.warning(
+          t('menus.addToBm.partialMsg', { success: successCount, failed: failedCount })
+        )
       } else {
         ElMessage.error(t('menus.addToBm.failMsg'))
       }

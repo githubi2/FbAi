@@ -215,7 +215,13 @@
   } from 'element-plus'
   import { Edit } from '@element-plus/icons-vue'
   import type { FbAdAccountDetail, FbPaymentRecord } from '@/api/facebook'
-  import { fetchFbAdAccountsDetail, fetchFbPaymentHistory, fetchFbRefreshAdAccounts, fetchFbUpdateAdAccountRemark, fetchRefreshStatus } from '@/api/facebook'
+  import {
+    fetchFbAdAccountsDetail,
+    fetchFbPaymentHistory,
+    fetchFbRefreshAdAccounts,
+    fetchFbUpdateAdAccountRemark,
+    fetchRefreshStatus
+  } from '@/api/facebook'
 
   defineOptions({ name: 'AdAccountManage' })
 
@@ -448,11 +454,7 @@
           minWidth: 140,
           formatter: (row: FbAdAccountDetail) =>
             h('div', { style: 'display:flex;align-items:center;gap:6px' }, [
-              h(
-                'span',
-                { style: row.remark ? '' : 'color:#999' },
-                row.remark || '—'
-              ),
+              h('span', { style: row.remark ? '' : 'color:#999' }, row.remark || '—'),
               h(
                 ElIcon,
                 {

@@ -51,7 +51,7 @@
   type TenantListItem = Api.Tenant.TenantListItem
 
   // 包装为分页格式（useTable 要求分页响应）
-  const fetchTenantListPaged = async (_params: any) => {
+  const fetchTenantListPaged = async () => {
     const list = await fetchGetTenantList()
     return {
       list: list || [],

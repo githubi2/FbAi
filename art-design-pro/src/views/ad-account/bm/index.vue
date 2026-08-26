@@ -162,7 +162,9 @@
   }
 
   // 认证状态映射（verification_status）
-  const getVerificationConfig = (status: string): { label: string; type: 'success' | 'info' | 'warning' } => {
+  const getVerificationConfig = (
+    status: string
+  ): { label: string; type: 'success' | 'info' | 'warning' } => {
     switch (status) {
       case 'verified':
         return { label: t('menus.adAccount.verified'), type: 'success' }
@@ -232,10 +234,8 @@
           label: t('menus.adAccount.columns.bmName'),
           minWidth: 200,
           formatter: (row: FbBmItem) =>
-            h(
-              ElTooltip,
-              { content: `ID: ${row.bmId}`, placement: 'top' },
-              () => h('span', row.name || '—')
+            h(ElTooltip, { content: `ID: ${row.bmId}`, placement: 'top' }, () =>
+              h('span', row.name || '—')
             )
         },
         {
@@ -244,11 +244,7 @@
           minWidth: 140,
           formatter: (row: FbBmItem) =>
             h('div', { style: 'display:flex;align-items:center;gap:6px' }, [
-              h(
-                'span',
-                { style: row.remark ? '' : 'color:#999' },
-                row.remark || '—'
-              ),
+              h('span', { style: row.remark ? '' : 'color:#999' }, row.remark || '—'),
               h(
                 ElIcon,
                 {
@@ -298,10 +294,8 @@
             if (names) tip += `（${names}）`
             if (row.pendingAdminCount > 0)
               tip += `\n${t('menus.adAccount.pendingAdmins')} ${row.pendingAdminCount}`
-            return h(
-              ElTooltip,
-              { content: tip, placement: 'top' },
-              () => h(ElTag, { type: 'primary', size: 'small' }, () => String(row.adminCount || 0))
+            return h(ElTooltip, { content: tip, placement: 'top' }, () =>
+              h(ElTag, { type: 'primary', size: 'small' }, () => String(row.adminCount || 0))
             )
           }
         },

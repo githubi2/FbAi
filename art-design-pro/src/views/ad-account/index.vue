@@ -159,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-  import { h, ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+  import { h, ref, reactive, onMounted, onUnmounted } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'

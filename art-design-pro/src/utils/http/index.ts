@@ -49,7 +49,7 @@ const axiosInstance = axios.create({
   transformResponse: [
     (data, headers) => {
       const contentType = headers['content-type']
-      if (contentType?.includes('application/json')) {
+      if (String(contentType ?? '').includes('application/json')) {
         try {
           return JSON.parse(data)
         } catch {
