@@ -159,6 +159,16 @@ GOPROXY=https://goproxy.cn,direct go build -o server.exe ./main.go
 
 ## 4. MANDATORY RULES (43 Rules)
 
+### 🔴 Rule 0.5: Requirement Clarification Gate (最高优先级 · 每次需求必走)
+
+**每次收到任何需求（无论大小、无论前后端），必须先走完"澄清 → 方案确认"流程，未确认不得写任何代码。**
+
+**Gate A — 澄清提问（问到你完全明白为止）**：逐项提问，必须覆盖前端逻辑（页面/组件/路由/权限/i18n/交互）、后端逻辑（API/表结构/业务规则/校验/权限）、前后端数据流、边界与异常场景；不假设，可分批提问；提问用独立编号问题 + 选项表格呈现，不埋长篇文字。
+
+**Gate B — 需求实现逻辑（方案文档）确认**：整理完整实现方案（涉及文件、前后端改动点、API/DB 变更、调用关系、影响范围、验证步骤），呈现给用户明确请求确认；**用户明确同意后才可开始编码**。
+
+**Gate C — 开发**：严格按确认后的方案执行；开发中偏离方案需重新确认。
+
 ### 🔴 Rule 0: CodeGraph First — Query Before You Code
 
 **Before writing or modifying ANY code**, you MUST use CodeGraph to understand the codebase.
