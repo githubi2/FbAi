@@ -317,23 +317,9 @@
   }
 
   .ad-tabs {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-
     :deep(.el-tabs__header) {
       margin-top: 0;
       margin-bottom: 12px;
-      flex-shrink: 0;
-    }
-
-    :deep(.el-tabs__content) {
-      flex: 1;
-      min-height: 0;
-    }
-
-    :deep(.el-tab-pane) {
-      height: 100%;
     }
   }
 </style>
