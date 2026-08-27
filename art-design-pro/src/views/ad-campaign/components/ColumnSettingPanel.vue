@@ -96,6 +96,7 @@
   }
 
   .group-card {
+    flex-shrink: 0;
     border: 1px solid var(--el-border-color-lighter);
     border-radius: 8px;
     overflow: hidden;

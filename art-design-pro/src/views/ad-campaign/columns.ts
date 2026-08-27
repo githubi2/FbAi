@@ -99,6 +99,43 @@ const moneyCell = (values: FbAction[] | undefined, type: string) => {
   return v ? h('span', `$${parseFloat(v).toFixed(2)}`) : DASH()
 }
 
+// ===== 排序（客户端）：虚拟 prop 列（insight/actions 提取）需自定义 sortMethod =====
+const insightSort = (key: string) => (a: any, b: any) =>
+  (parseFloat(a.insight?.[key]) || 0) - (parseFloat(b.insight?.[key]) || 0)
+const actionSort = (type: string) => (a: any, b: any) =>
+  (parseFloat(actionOf(a.insight?.actions, type)) || 0) -
+  (parseFloat(actionOf(b.insight?.actions, type)) || 0)
+
+const SORT_MAP: Record<string, (a: any, b: any) => number> = {
+  dailyBudget: (a, b) =>
+    (parseFloat(a.dailyBudget || a.lifetimeBudget) || 0) -
+    (parseFloat(b.dailyBudget || b.lifetimeBudget) || 0),
+  insightSpend: insightSort('spend'),
+  insightResults: insightSort('results'),
+  insightCostPerResult: insightSort('costPerResult'),
+  insightResultRate: insightSort('resultRate'),
+  insightImpressions: insightSort('impressions'),
+  insightReach: insightSort('reach'),
+  insightFrequency: insightSort('frequency'),
+  insightClicks: insightSort('clicks'),
+  insightCtr: insightSort('ctr'),
+  insightCpc: insightSort('cpc'),
+  insightCpm: insightSort('cpm'),
+  insightCpp: insightSort('cpp'),
+  purchaseCount: actionSort('purchase'),
+  purchaseValue: actionSort('purchase'),
+  messagingCount: actionSort('messaging'),
+  leadCount: actionSort('lead'),
+  linkClickCount: actionSort('link_click')
+}
+
+const withSorting = <T>(cols: ColumnOption<T>[]): ColumnOption<T>[] =>
+  cols.map((c) => {
+    if (c.type === 'selection' || c.type === 'expand' || c.prop === 'operation') return c
+    const sm = SORT_MAP[c.prop as string]
+    return sm ? { ...c, sortable: true, sortMethod: sm } : { ...c, sortable: true }
+  })
+
 interface CampaignColsOptions {
   t: (key: string) => string
   isAccountDisabled: (row: any) => boolean
@@ -110,7 +147,7 @@ export function buildCampaignColumns({
   onViewAdSets
 }: CampaignColsOptions): ColumnOption<FbCampaign>[] {
   const P = 'menus.adCampaign.columns'
-  return [
+  return withSorting([
     // ===== 基础 =====
     {
       prop: 'accountName',
@@ -312,7 +349,7 @@ export function buildCampaignColumns({
           () => t('menus.adCampaign.adSetTab')
         )
     }
-  ]
+  ])
 }
 
 interface AdSetColsOptions {
@@ -324,7 +361,7 @@ export function buildAdSetColumns({
   isAccountDisabled
 }: AdSetColsOptions): ColumnOption<FbAdSet>[] {
   const P = 'menus.adCampaign.columns'
-  return [
+  return withSorting([
     {
       prop: 'accountName',
       label: t(`${P}.account`),
@@ -398,7 +435,7 @@ export function buildAdSetColumns({
       minWidth: 160,
       formatter: (row: FbAdSet) => row.createdTime || '—'
     }
-  ]
+  ])
 }
 
 export function buildAdColumns(
@@ -406,7 +443,7 @@ export function buildAdColumns(
   isAccountDisabled: (row: any) => boolean
 ): ColumnOption<FbAd>[] {
   const P = 'menus.adCampaign.columns'
-  return [
+  return withSorting([
     {
       prop: 'accountName',
       label: t(`${P}.account`),
@@ -476,5 +513,5 @@ export function buildAdColumns(
       minWidth: 160,
       formatter: (row: FbAd) => row.updatedTime || '—'
     }
-  ]
+  ])
 }
