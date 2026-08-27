@@ -335,5 +335,9 @@
     :deep(.el-tab-pane) {
       height: 100%;
     }
+
+    :deep(.custom-pagination) {
+      padding-bottom: 14px;
+    }
   }
 </style>
