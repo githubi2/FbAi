@@ -336,8 +336,9 @@
       height: 100%;
     }
 
+    // 分页与卡片底保留间隙：margin 不被 useTableHeight 测量吸收（padding 会被吸收导致视觉无变化）
     :deep(.custom-pagination) {
-      padding-bottom: 14px;
+      margin-bottom: 20px;
     }
   }
 </style>
