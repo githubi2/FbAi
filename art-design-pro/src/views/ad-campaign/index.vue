@@ -36,10 +36,14 @@
     </ElCard>
 
     <ElCard class="art-table-card">
-      <ArtTableHeader :loading="campaignLoading" @refresh="handleSearch" />
       <ElTabs v-model="activeTab" class="ad-tabs">
         <!-- 广告系列 -->
         <ElTabPane :label="$t('menus.adCampaign.campaignTab')" :name="'campaign'">
+          <ArtTableHeader
+            :loading="campaignLoading"
+            :columns="campaignColumnChecks"
+            @refresh="handleSearch"
+          />
           <ArtTable
             :loading="campaignLoading"
             :data="campaignData"
@@ -53,6 +57,11 @@
 
         <!-- 广告组 -->
         <ElTabPane :label="$t('menus.adCampaign.adSetTab')" :name="'adset'">
+          <ArtTableHeader
+            :loading="adsetLoading"
+            :columns="adsetColumnChecks"
+            @refresh="handleAdSetRefresh"
+          />
           <ArtTable
             :loading="adsetLoading"
             :data="adsetData"
@@ -66,6 +75,11 @@
 
         <!-- 广告 -->
         <ElTabPane :label="$t('menus.adCampaign.adTab')" :name="'ad'">
+          <ArtTableHeader
+            :loading="adLoading"
+            :columns="adColumnChecks"
+            @refresh="handleAdRefresh"
+          />
           <ArtTable
             :loading="adLoading"
             :data="adData"
@@ -185,6 +199,7 @@
     data: campaignData,
     loading: campaignLoading,
     pagination: campaignPagination,
+    columnChecks: campaignColumnChecks,
     replaceSearchParams: campaignReplace,
     getData: campaignGetData,
     handleSizeChange: campaignSizeChange,
@@ -202,6 +217,7 @@
     data: adsetData,
     loading: adsetLoading,
     pagination: adsetPagination,
+    columnChecks: adsetColumnChecks,
     replaceSearchParams: adsetReplace,
     getData: adsetGetData,
     handleSizeChange: adsetSizeChange,
@@ -220,6 +236,7 @@
     data: adData,
     loading: adLoading,
     pagination: adPagination,
+    columnChecks: adColumnChecks,
     replaceSearchParams: adReplace,
     getData: adGetData,
     handleSizeChange: adSizeChange,
@@ -250,6 +267,17 @@
   // 函数声明（提升）：columnsFactory 在 setup 时立即执行仅读取引用，实际访问的 ref 在点击时已初始化
   function onViewAdSets() {
     activeTab.value = 'adset'
+  }
+
+  // 各 tab 表头刷新（广告组/广告为账户级全量，与 watch 逻辑一致）
+  const handleAdSetRefresh = () => {
+    adsetReplace({ accountIds: searchForm.accountIds, current: 1, size: 20 } as any)
+    adsetGetData()
+  }
+
+  const handleAdRefresh = () => {
+    adReplace({ accountIds: searchForm.accountIds, current: 1, size: 20 } as any)
+    adGetData()
   }
 
   // 按行判定账户是否被封禁（account_status != 1 或 disable_reason > 0）

@@ -35,10 +35,12 @@ const statusTag = (config: StatusConfig) =>
 const accountDisabledTag = (t: (key: string) => string) =>
   statusTag({ type: 'danger', label: t('menus.adCampaign.status.ACCOUNT_DISABLED') })
 
-// 金额：FB 返回字符串，"0"/空 = 未设置
+// 金额：FB 预算单位为账户货币最小单位（分/cent，官方示例 daily_budget=1000 即 $10.00）
 const budgetText = (v: string | undefined) => {
   if (!v || v === '0') return DASH()
-  return h('span', `$${v}`)
+  const n = parseFloat(v)
+  if (Number.isNaN(n)) return h('span', `$${v}`)
+  return h('span', `$${(n / 100).toFixed(2)}`)
 }
 
 const insightCell = (ins: FbInsight | undefined, key: string) => {
