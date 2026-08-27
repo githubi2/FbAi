@@ -39,17 +39,10 @@
       <ElTabs v-model="activeTab" class="ad-tabs">
         <ElTabPane :label="$t('menus.adCampaign.campaignTab')" :name="'campaign'">
           <ArtTableHeader
+            v-model:columns="campaignColumnChecks"
             :loading="campaignLoading"
-            :columns="campaignColumnChecks"
-            layout="search,refresh,size,fullscreen,settings"
             @refresh="handleSearch"
-          >
-            <template #right>
-              <ElButton size="small" plain @click="columnSettingVisible = true">
-                {{ $t('menus.adCampaign.columnSetting') }}
-              </ElButton>
-            </template>
-          </ArtTableHeader>
+          />
           <ArtTable
             :loading="campaignLoading"
             :data="campaignData"
@@ -64,17 +57,10 @@
         <!-- 广告组 -->
         <ElTabPane :label="$t('menus.adCampaign.adSetTab')" :name="'adset'">
           <ArtTableHeader
+            v-model:columns="adsetColumnChecks"
             :loading="adsetLoading"
-            :columns="adsetColumnChecks"
-            layout="search,refresh,size,fullscreen,settings"
             @refresh="handleAdSetRefresh"
-          >
-            <template #right>
-              <ElButton size="small" plain @click="columnSettingVisible = true">
-                {{ $t('menus.adCampaign.columnSetting') }}
-              </ElButton>
-            </template>
-          </ArtTableHeader>
+          />
           <ArtTable
             :loading="adsetLoading"
             :data="adsetData"
@@ -89,17 +75,10 @@
         <!-- 广告 -->
         <ElTabPane :label="$t('menus.adCampaign.adTab')" :name="'ad'">
           <ArtTableHeader
+            v-model:columns="adColumnChecks"
             :loading="adLoading"
-            :columns="adColumnChecks"
-            layout="search,refresh,size,fullscreen,settings"
             @refresh="handleAdRefresh"
-          >
-            <template #right>
-              <ElButton size="small" plain @click="columnSettingVisible = true">
-                {{ $t('menus.adCampaign.columnSetting') }}
-              </ElButton>
-            </template>
-          </ArtTableHeader>
+          />
           <ArtTable
             :loading="adLoading"
             :data="adData"
@@ -112,13 +91,11 @@
         </ElTabPane>
       </ElTabs>
     </ElCard>
-
-    <ColumnSettingPanel v-model="columnSettingVisible" :columns="activeColumnChecks" />
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, reactive, computed, watch, onMounted } from 'vue'
+  import { ref, reactive, watch, onMounted } from 'vue'
   import { useI18n } from 'vue-i18n'
   import {
     ElCard,
@@ -141,19 +118,10 @@
     type FbAdAccountDetail
   } from '@/api/facebook'
   import { buildCampaignColumns, buildAdSetColumns, buildAdColumns } from './columns'
-  import ColumnSettingPanel from './components/ColumnSettingPanel.vue'
 
   defineOptions({ name: 'AdCampaignMonitor' })
 
   const { t } = useI18n()
-
-  // ==================== 列设置面板 ====================
-  const columnSettingVisible = ref(false)
-  const activeColumnChecks = computed(() => {
-    if (activeTab.value === 'adset') return adsetColumnChecks.value
-    if (activeTab.value === 'ad') return adColumnChecks.value
-    return campaignColumnChecks.value
-  })
 
   // ==================== 广告账户下拉（多选） ====================
   const accounts = ref<FbAdAccountDetail[]>([])
@@ -334,7 +302,7 @@
 
 <style lang="scss" scoped>
   .ad-campaign-page {
-    padding: 0 0 96px;
+    padding: 0;
   }
 
   .search-form {
