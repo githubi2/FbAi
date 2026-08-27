@@ -349,33 +349,23 @@
   }
 
   .ad-tabs {
-    flex: 1;
-    min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
 
     :deep(.el-tabs__header) {
-      margin-bottom: 12px;
       margin-top: 0;
+      margin-bottom: 12px;
+      flex-shrink: 0;
     }
 
     :deep(.el-tabs__content) {
       flex: 1;
       min-height: 0;
-      display: flex;
-      flex-direction: column;
     }
 
     :deep(.el-tab-pane) {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-
-      .art-table {
-        flex: 1;
-        min-height: 0;
-      }
+      height: 100%;
     }
   }
 </style>

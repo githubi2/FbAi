@@ -62,6 +62,7 @@ Token 解析：`fb_ad_accounts_cache.ad_account_id` → `fb_token_id` → `fb_to
    - **前端**：新增列（成效/单次成效费用/成效获得率/购买数/购买金额/消息数/线索数/链接点击/覆盖/频次/CPM/CPP），列定义加 `group`（基础/成效与花费/传播）；新建 `ColumnSettingPanel.vue`（FB"编辑列"同款分组勾选弹窗，**样式对齐本项目**：ElDialog+分组卡片+实时生效+重置）；ArtTableHeader 传入 columnChecks 且 layout 移除原生 columns 按钮，header right slot 放"编辑列"按钮。
    - **勾选联动**（同坑）：computed 传给子组件 props 时需返回 `.value`（computed 不自动解包 ref），否则报 "Expected Array, got Object"。
    - 实测：弹窗 3 分组渲染 ✅；取消"购买数"→ 表格列即时隐藏 ✅；截图确认。
+   - **分页贴底修复（二次）**（2026-08-27 用户纠错）：首次用 `.ad-tabs flex:1` 未生效——**根因：ElCard body 是 `height:100%` 而非 flex 容器**，flex:1 在非 flex 父下无效；正确做法是 **height:100% 链**（tabs → content flex:1 → pane height:100% → ArtTable height:100% + useTableHeight 自动计算 el-table 高度），分页随 ArtTable 贴卡片底。实测：分页距卡片底 16px（内边距）、卡片贴视口底（15px 内边距），与广告账户管理页一致。**教训：检查代码时看父容器布局模式（flex vs height），不要凭"应该生效"假设。**
 
 ### 官方文档状态依据（2026-08-27 实抓 v26.0 广告组字段表）
 
