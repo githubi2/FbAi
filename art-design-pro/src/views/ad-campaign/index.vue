@@ -334,7 +334,7 @@
 
 <style lang="scss" scoped>
   .ad-campaign-page {
-    padding: 0;
+    padding: 0 0 44px;
   }
 
   .search-form {
