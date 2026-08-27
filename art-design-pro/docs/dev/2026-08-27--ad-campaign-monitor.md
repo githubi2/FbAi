@@ -43,6 +43,13 @@ Token 解析：`fb_ad_accounts_cache.ad_account_id` → `fb_token_id` → `fb_to
 4. **"账户已停用"状态不来自 API**（2026-08-27 用户纠错）：FB API 的 campaign/adset/ad `status`/`effective_status` 对停用账户仍返回 ACTIVE；FB 后台"账户已停用"是其 UI 按**广告账户状态**计算的。修复：前端用所选账户的 `accountStatus != 1 || disableReason > 0` 推断（来自 ad-accounts/detail），状态列统一显示"账户已停用"（danger）。
 5. **直接切标签页无上下文 → 数据空**（2026-08-27 用户反馈）：`watch(activeTab)` 只在 activeCampaignId 已存在时加载，用户直接点"广告组/广告"标签时空白。修复：切 tab 自动取**第一行**作为下钻上下文（campaign→adset→ad 逐级），无需先点行内按钮。
 6. **广告组/广告数据不全——只按单个 campaign/adset 查询**（2026-08-27 用户纠错，第二轮）：原实现先查 campaign 再查其 adsets（只返回第一个系列的数据，广告漏掉另一半）。修复：改为**账户级聚合**——`GET /{act}/adsets`（一次取全部广告组，含 `campaign{id,name}` 归属）与 `GET /{act}/ads`（一次取全部广告，含 `campaign{id,name},adset{id,name}` 归属），与 FB 后台"广告组/广告"全量视图一致。新增 `GET /api/v1/fb/adsets?accountId=` / `GET /api/v1/fb/ads?accountId=` 端点（旧 campaign/adset 级端点保留兼容）。前端广告组/广告 tab 已改为账户级拉取，并新增"所属系列/所属广告组"列。
+7. **多账户全量 + 空态修复**（2026-08-27 用户反馈，第三轮）：
+   - **默认全量**：进入页面即聚合**全部授权广告账户**数据（`accountIds` 缺省=全部，`resolveAccounts` 从 fb_ad_accounts_cache 取全部账户凭据）；筛选支持**多选**（`accountIds=act_x,act_y`，前端 ElSelect multiple + clearable，placeholder"不选=全部账户，可多选"）。
+   - **账户列**：三表首列新增"账户"（账户名 + BM 名），按行判定停用状态（`isAccountDisabled(row)` 用 row.accountId 查账户状态，不再全局）。
+   - **空态单图标**：ArtTable 自带 `#empty` 插槽（"暂无数据"），页面手动加的 `ElEmpty` 导致双空态——移除 ad-campaign（3 tab）/bm/page-manage/manage 支付弹窗的手动 ElEmpty，改用 ArtTable `:empty-text`（新增 noPaymentRecords 等 i18n 键）。
+   - **限速雪崩修复**：多账户全量时每账户 2 次 FB 调用，4s 限速 + 前端 15s 超时 → 请求积压雪崩（单请求 70s+）。修复：`FB_RATE_LIMIT_MS=1500`（.env，限速器原生支持）、axios 3 个聚合端点 `timeout: 180000`、adset/ad 表格 `immediate: false`（切 tab 才加载，避免 3 端点并发排队）。
+   
+   实测：全量 campaigns 16.6s 返回（3 账户 ×（campaigns+insights）× 1.5s + FB 往返）；浏览器全流程验证通过（默认全量 2 条 + 账户列 + 多选筛选空态单图标 + 重置回全量）。
 
 ### 官方文档状态依据（2026-08-27 实抓 v26.0 广告组字段表）
 

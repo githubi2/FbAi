@@ -395,6 +395,7 @@
       "filterStatus": "Filter by status",
       "filterAccountType": "Account type",
       "bmNoData": "No BM data",
+      "noPaymentRecords": "No payment records",
       "addAuth": "Add Auth",
       "deleteAuth": "Delete Auth",
       "addToBM": "Add to BM",
@@ -488,12 +489,12 @@
     },
     "adCampaign": {
       "title": "Ad Campaigns",
-      "selectAccount": "Select Ad Account",
-      "selectAccountPlaceholder": "Select ad account",
+      "selectAccount": "Ad Account Filter",
+      "selectAccountPlaceholder": "Empty = all accounts, multi-select",
       "loadCampaigns": "Load Campaigns",
-      "noCampaigns": "No campaigns. Select an account first.",
-      "noAdSets": "No ad sets",
-      "noAds": "No ads",
+      "noCampaigns": "No campaign data",
+      "noAdSets": "No ad set data",
+      "noAds": "No ad data",
       "campaignTab": "Campaigns",
       "adSetTab": "Ad Sets",
       "adTab": "Ads",
@@ -520,8 +521,10 @@
         "creative": "Creative",
         "effectiveStatus": "Effective Status",
         "campaignName": "Campaign",
-        "adsetName": "Ad Set"
+        "adsetName": "Ad Set",
+        "account": "Account"
       },
+      "selectedAccounts": "Selected Accounts",
       "status": {
         "ACTIVE": "Active",
         "PAUSED": "Paused",

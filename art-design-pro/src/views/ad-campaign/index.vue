@@ -1,5 +1,5 @@
 <!-- 广告投放监控页 — 只读：广告系列/广告组/广告 三标签 + 近7天统计 -->
-<!-- 数据策略：实时拉取 FB API（按广告账户筛选，数据量小） -->
+<!-- 数据策略：实时拉取 FB API；默认聚合全部授权广告账户，筛选支持多选账户 -->
 <template>
   <div class="ad-campaign-page art-full-height">
     <!-- 搜索筛选栏 -->
@@ -7,10 +7,13 @@
       <ElForm :inline="true" :model="searchForm" class="search-form">
         <ElFormItem :label="$t('menus.adCampaign.selectAccount')">
           <ElSelect
-            v-model="searchForm.accountId"
+            v-model="searchForm.accountIds"
             :placeholder="$t('menus.adCampaign.selectAccountPlaceholder')"
-            style="width: 280px"
+            style="width: 360px"
+            multiple
             filterable
+            collapse-tags
+            clearable
           >
             <ElOption
               v-for="acc in accounts"
@@ -24,10 +27,10 @@
           <ElButton @click="handleSearch">{{ $t('table.searchBar.search') }}</ElButton>
           <ElButton @click="handleReset">{{ $t('table.searchBar.reset') }}</ElButton>
         </ElFormItem>
-        <ElFormItem v-if="currentAccountName">
-          <ElTag type="info"
-            >{{ $t('menus.adCampaign.accountName') }}: {{ currentAccountName }}</ElTag
-          >
+        <ElFormItem v-if="searchForm.accountIds.length">
+          <ElTag type="info">
+            {{ $t('menus.adCampaign.selectedAccounts') }}: {{ searchForm.accountIds.length }}
+          </ElTag>
         </ElFormItem>
       </ElForm>
     </ElCard>
@@ -42,12 +45,9 @@
             :data="campaignData"
             :columns="campaignColumns"
             :pagination="campaignPagination"
+            :empty-text="$t('menus.adCampaign.noCampaigns')"
             @pagination:size-change="campaignSizeChange"
             @pagination:current-change="campaignCurrentChange"
-          />
-          <ElEmpty
-            v-if="!campaignLoading && campaignData.length === 0"
-            :description="$t('menus.adCampaign.noCampaigns')"
           />
         </ElTabPane>
 
@@ -58,12 +58,9 @@
             :data="adsetData"
             :columns="adsetColumns"
             :pagination="adsetPagination"
+            :empty-text="$t('menus.adCampaign.noAdSets')"
             @pagination:size-change="adsetSizeChange"
             @pagination:current-change="adsetCurrentChange"
-          />
-          <ElEmpty
-            v-if="!adsetLoading && adsetData.length === 0"
-            :description="$t('menus.adCampaign.noAdSets')"
           />
         </ElTabPane>
 
@@ -74,12 +71,9 @@
             :data="adData"
             :columns="adColumns"
             :pagination="adPagination"
+            :empty-text="$t('menus.adCampaign.noAds')"
             @pagination:size-change="adSizeChange"
             @pagination:current-change="adCurrentChange"
-          />
-          <ElEmpty
-            v-if="!adLoading && adData.length === 0"
-            :description="$t('menus.adCampaign.noAds')"
           />
         </ElTabPane>
       </ElTabs>
@@ -88,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, reactive, computed, watch, onMounted } from 'vue'
+  import { ref, reactive, watch, onMounted } from 'vue'
   import { useI18n } from 'vue-i18n'
   import {
     ElCard,
@@ -99,8 +93,7 @@
     ElButton,
     ElTag,
     ElTabs,
-    ElTabPane,
-    ElEmpty
+    ElTabPane
   } from 'element-plus'
   import { useTable } from '@/hooks/core/useTable'
   import {
@@ -117,14 +110,9 @@
 
   const { t } = useI18n()
 
-  // ==================== 广告账户下拉 ====================
+  // ==================== 广告账户下拉（多选） ====================
   const accounts = ref<FbAdAccountDetail[]>([])
-  const searchForm = reactive({ accountId: '' })
-
-  const currentAccountName = computed(() => {
-    const acc = accounts.value.find((a) => a.id === searchForm.accountId)
-    return acc ? acc.name : ''
-  })
+  const searchForm = reactive({ accountIds: [] as string[] })
 
   onMounted(async () => {
     try {
@@ -135,14 +123,12 @@
     }
   })
 
-  // ==================== 数据加载（客户端分页） ====================
+  // ==================== 数据加载（账户级聚合 + 客户端分页） ====================
   const fetchCampaignPaged = async (params: any) => {
-    const accountId = params?.accountId || ''
-    if (!accountId) return { list: [], total: 0, page: 1, size: 20 }
     const current = params?.current || 1
     const size = params?.size || 20
     try {
-      const res = await fetchFbCampaigns(accountId)
+      const res = await fetchFbCampaigns(params?.accountIds || [])
       const list = res.list || []
       const all = list.sort((a: FbCampaign, b: FbCampaign) =>
         (b.updatedTime || '').localeCompare(a.updatedTime || '')
@@ -158,14 +144,12 @@
     }
   }
 
-  // 广告组/广告：账户级聚合（一次调用返回该账户全部数据，含所属系列/广告组）
+  // 广告组/广告：账户级聚合（一次调用返回所选账户/全部账户数据，含归属列）
   const fetchAdSetPaged = async (params: any) => {
-    const accountId = params?.accountId || ''
-    if (!accountId) return { list: [], total: 0, page: 1, size: 20 }
     const current = params?.current || 1
     const size = params?.size || 20
     try {
-      const res = await fetchFbAdSetsByAccount(accountId)
+      const res = await fetchFbAdSetsByAccount(params?.accountIds || [])
       const list = res.list || []
       return {
         list: list.slice((current - 1) * size, current * size),
@@ -179,12 +163,10 @@
   }
 
   const fetchAdPaged = async (params: any) => {
-    const accountId = params?.accountId || ''
-    if (!accountId) return { list: [], total: 0, page: 1, size: 20 }
     const current = params?.current || 1
     const size = params?.size || 20
     try {
-      const res = await fetchFbAdsByAccount(accountId)
+      const res = await fetchFbAdsByAccount(params?.accountIds || [])
       const list = res.list || []
       return {
         list: list.slice((current - 1) * size, current * size),
@@ -210,7 +192,7 @@
   } = useTable({
     core: {
       apiFn: fetchCampaignPaged,
-      apiParams: { current: 1, size: 20, accountId: '' },
+      apiParams: { current: 1, size: 20, accountIds: [] },
       columnsFactory: () => buildCampaignColumns({ t, isAccountDisabled, onViewAdSets })
     }
   })
@@ -227,8 +209,9 @@
   } = useTable({
     core: {
       apiFn: fetchAdSetPaged,
-      apiParams: { current: 1, size: 20, accountId: '' },
-      columnsFactory: () => buildAdSetColumns({ t, isAccountDisabled })
+      apiParams: { current: 1, size: 20, accountIds: [] },
+      columnsFactory: () => buildAdSetColumns({ t, isAccountDisabled }),
+      immediate: false
     }
   })
 
@@ -244,8 +227,9 @@
   } = useTable({
     core: {
       apiFn: fetchAdPaged,
-      apiParams: { current: 1, size: 20, accountId: '' },
-      columnsFactory: () => buildAdColumns(t, isAccountDisabled)
+      apiParams: { current: 1, size: 20, accountIds: [] },
+      columnsFactory: () => buildAdColumns(t, isAccountDisabled),
+      immediate: false
     }
   })
 
@@ -253,13 +237,13 @@
   const activeTab = ref<'campaign' | 'adset' | 'ad'>('campaign')
 
   const handleSearch = () => {
-    campaignReplace({ accountId: searchForm.accountId, current: 1, size: 20 } as any)
+    campaignReplace({ accountIds: searchForm.accountIds, current: 1, size: 20 } as any)
     campaignGetData()
   }
 
   const handleReset = () => {
-    searchForm.accountId = ''
-    campaignReplace({ accountId: '', current: 1, size: 20 } as any)
+    searchForm.accountIds = []
+    campaignReplace({ accountIds: [], current: 1, size: 20 } as any)
     campaignGetData()
   }
 
@@ -268,22 +252,22 @@
     activeTab.value = 'adset'
   }
 
-  // 当前所选广告账户是否被封禁（account_status != 1 或 disable_reason > 0）
+  // 按行判定账户是否被封禁（account_status != 1 或 disable_reason > 0）
   // FB API 不返回"账户已停用"状态——按 FB 后台口径由账户状态推断，campaign/adset/ad 全部显示该状态
-  function isAccountDisabled() {
-    const acc = accounts.value.find((a) => a.id === searchForm.accountId)
+  function isAccountDisabled(row: any) {
+    const acc = accounts.value.find((a) => a.id === row.accountId)
     return !!acc && (acc.accountStatus !== 1 || acc.disableReason > 0)
   }
 
-  // 标签切换：广告组/广告为账户级全量（一次拉取该账户全部，含归属列）
+  // 标签切换：广告组/广告为账户级全量（一次拉取所选/全部账户，含归属列）
   watch(activeTab, (tab) => {
-    const accountId = searchForm.accountId
-    if (tab === 'adset' && accountId) {
-      adsetReplace({ accountId, current: 1, size: 20 } as any)
+    const accountIds = searchForm.accountIds
+    if (tab === 'adset') {
+      adsetReplace({ accountIds, current: 1, size: 20 } as any)
       adsetGetData()
     }
-    if (tab === 'ad' && accountId) {
-      adReplace({ accountId, current: 1, size: 20 } as any)
+    if (tab === 'ad') {
+      adReplace({ accountIds, current: 1, size: 20 } as any)
       adGetData()
     }
   })

@@ -193,6 +193,9 @@ type FbCampaign struct {
 	CreatedTime     string     `json:"createdTime"`
 	UpdatedTime     string     `json:"updatedTime"`
 	Insight         *FbInsight `json:"insight,omitempty"` // 近 7 天统计（insights 合并）
+	AccountID       string     `json:"accountId"`         // 所属广告账户（聚合时填充）
+	AccountName     string     `json:"accountName"`       // 所属广告账户名（聚合时填充）
+	AccountBM       string     `json:"accountBm"`         // 所属 BM 名称（可为空）
 }
 
 // FbCampaignListResponse 广告系列响应
@@ -216,6 +219,9 @@ type FbAdSet struct {
 	StopTime         string `json:"stopTime"`
 	CreatedTime      string `json:"createdTime"`
 	CampaignName     string `json:"campaignName"` // 所属系列名（账户级查询时填充）
+	AccountID        string `json:"accountId"`    // 所属广告账户（聚合时填充）
+	AccountName      string `json:"accountName"`  // 所属广告账户名（聚合时填充）
+	AccountBM        string `json:"accountBm"`    // 所属 BM 名称（可为空）
 }
 
 // FbAdSetListResponse 广告组响应
@@ -236,6 +242,9 @@ type FbAd struct {
 	UpdatedTime     string `json:"updatedTime"`
 	CampaignName    string `json:"campaignName"` // 所属系列名（账户级查询时填充）
 	AdsetName       string `json:"adsetName"`    // 所属广告组名（账户级查询时填充）
+	AccountID       string `json:"accountId"`    // 所属广告账户（聚合时填充）
+	AccountName     string `json:"accountName"`  // 所属广告账户名（聚合时填充）
+	AccountBM       string `json:"accountBm"`    // 所属 BM 名称（可为空）
 }
 
 // FbAdListResponse 广告响应

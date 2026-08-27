@@ -48,7 +48,7 @@ const insightCell = (ins: FbInsight | undefined, key: string) => {
 
 interface CampaignColsOptions {
   t: (key: string) => string
-  isAccountDisabled: () => boolean
+  isAccountDisabled: (row: any) => boolean
   onViewAdSets: (row: FbCampaign) => void
 }
 export function buildCampaignColumns({
@@ -58,6 +58,18 @@ export function buildCampaignColumns({
 }: CampaignColsOptions): ColumnOption<FbCampaign>[] {
   const P = 'menus.adCampaign.columns'
   return [
+    {
+      prop: 'accountName',
+      label: t(`${P}.account`),
+      minWidth: 140,
+      formatter: (row: FbCampaign) =>
+        h(
+          'span',
+          row.accountName
+            ? `${row.accountName}${row.accountBm ? '（' + row.accountBm + '）' : ''}`
+            : '—'
+        )
+    },
     {
       prop: 'name',
       label: t(`${P}.name`),
@@ -72,7 +84,7 @@ export function buildCampaignColumns({
       label: t(`${P}.status`),
       width: 90,
       formatter: (row: FbCampaign) =>
-        isAccountDisabled() ? accountDisabledTag(t) : statusTag(getStatusConfig(row.status, t))
+        isAccountDisabled(row) ? accountDisabledTag(t) : statusTag(getStatusConfig(row.status, t))
     },
     {
       prop: 'objective',
@@ -151,7 +163,7 @@ export function buildCampaignColumns({
 
 interface AdSetColsOptions {
   t: (key: string) => string
-  isAccountDisabled: () => boolean
+  isAccountDisabled: (row: any) => boolean
 }
 export function buildAdSetColumns({
   t,
@@ -159,6 +171,18 @@ export function buildAdSetColumns({
 }: AdSetColsOptions): ColumnOption<FbAdSet>[] {
   const P = 'menus.adCampaign.columns'
   return [
+    {
+      prop: 'accountName',
+      label: t(`${P}.account`),
+      minWidth: 140,
+      formatter: (row: FbAdSet) =>
+        h(
+          'span',
+          row.accountName
+            ? `${row.accountName}${row.accountBm ? '（' + row.accountBm + '）' : ''}`
+            : '—'
+        )
+    },
     {
       prop: 'campaignName',
       label: t(`${P}.campaignName`),
@@ -179,7 +203,7 @@ export function buildAdSetColumns({
       label: t(`${P}.status`),
       width: 90,
       formatter: (row: FbAdSet) =>
-        isAccountDisabled() ? accountDisabledTag(t) : statusTag(getStatusConfig(row.status, t))
+        isAccountDisabled(row) ? accountDisabledTag(t) : statusTag(getStatusConfig(row.status, t))
     },
     {
       prop: 'optimizationGoal',
@@ -216,10 +240,22 @@ export function buildAdSetColumns({
 
 export function buildAdColumns(
   t: (key: string) => string,
-  isAccountDisabled: () => boolean
+  isAccountDisabled: (row: any) => boolean
 ): ColumnOption<FbAd>[] {
   const P = 'menus.adCampaign.columns'
   return [
+    {
+      prop: 'accountName',
+      label: t(`${P}.account`),
+      minWidth: 130,
+      formatter: (row: FbAd) =>
+        h(
+          'span',
+          row.accountName
+            ? `${row.accountName}${row.accountBm ? '（' + row.accountBm + '）' : ''}`
+            : '—'
+        )
+    },
     {
       prop: 'campaignName',
       label: t(`${P}.campaignName`),
@@ -246,7 +282,7 @@ export function buildAdColumns(
       label: t(`${P}.status`),
       width: 90,
       formatter: (row: FbAd) =>
-        isAccountDisabled() ? accountDisabledTag(t) : statusTag(getStatusConfig(row.status, t))
+        isAccountDisabled(row) ? accountDisabledTag(t) : statusTag(getStatusConfig(row.status, t))
     },
     {
       prop: 'creativeName',

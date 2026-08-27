@@ -395,6 +395,7 @@
       "filterStatus": "状态筛选",
       "filterAccountType": "账号类型",
       "bmNoData": "暂无BM数据",
+      "noPaymentRecords": "暂无支付记录",
       "addAuth": "增加授权",
       "deleteAuth": "删除授权",
       "addToBM": "添加到BM",
@@ -488,10 +489,10 @@
     },
     "adCampaign": {
       "title": "广告投放",
-      "selectAccount": "选择广告账户",
-      "selectAccountPlaceholder": "请选择广告账户",
+      "selectAccount": "广告账户筛选",
+      "selectAccountPlaceholder": "不选=全部账户，可多选",
       "loadCampaigns": "加载系列",
-      "noCampaigns": "暂无广告系列数据，请先选择账户",
+      "noCampaigns": "暂无广告系列数据",
       "noAdSets": "暂无广告组数据",
       "noAds": "暂无广告数据",
       "campaignTab": "广告系列",
@@ -520,8 +521,10 @@
         "creative": "创意",
         "effectiveStatus": "生效状态",
         "campaignName": "所属系列",
-        "adsetName": "所属广告组"
+        "adsetName": "所属广告组",
+        "account": "账户"
       },
+      "selectedAccounts": "已选账户",
       "status": {
         "ACTIVE": "投放中",
         "PAUSED": "已暂停",

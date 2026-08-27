@@ -98,8 +98,12 @@
       width="800px"
       destroy-on-close
     >
-      <ArtTable :loading="paymentLoading" :data="pagedPaymentRecords" :columns="paymentColumns" />
-      <ElEmpty v-if="!paymentLoading && paymentRecords.length === 0" description="暂无支付记录" />
+      <ArtTable
+        :loading="paymentLoading"
+        :data="pagedPaymentRecords"
+        :columns="paymentColumns"
+        :empty-text="$t('menus.adAccount.noPaymentRecords')"
+      />
       <div v-if="paymentRecords.length > 0" class="payment-pagination">
         <ElPagination
           v-model:current-page="paymentPage"

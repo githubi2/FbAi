@@ -50,11 +50,10 @@
         :data="data"
         :columns="columns"
         :pagination="pagination"
+        :empty-text="$t('menus.pageManage.noPages')"
         @pagination:size-change="handleSizeChange"
         @pagination:current-change="handleCurrentChange"
       />
-
-      <ElEmpty v-if="!loading && data.length === 0" :description="$t('menus.pageManage.noPages')" />
     </ElCard>
 
     <!-- 备注编辑弹窗 -->

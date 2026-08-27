@@ -561,6 +561,10 @@ export interface FbCampaign {
   createdTime: string
   updatedTime: string
   insight?: FbInsight
+  /** 所属广告账户（聚合时返回） */
+  accountId: string
+  accountName: string
+  accountBm: string
 }
 
 export interface FbCampaignListResponse {
@@ -584,6 +588,10 @@ export interface FbAdSet {
   createdTime: string
   /** 所属系列名（账户级查询时返回） */
   campaignName: string
+  /** 所属广告账户（聚合时返回） */
+  accountId: string
+  accountName: string
+  accountBm: string
 }
 
 export interface FbAdSetListResponse {
@@ -605,6 +613,10 @@ export interface FbAd {
   campaignName: string
   /** 所属广告组名（账户级查询时返回） */
   adsetName: string
+  /** 所属广告账户（聚合时返回） */
+  accountId: string
+  accountName: string
+  accountBm: string
 }
 
 export interface FbAdListResponse {
@@ -612,12 +624,13 @@ export interface FbAdListResponse {
   total: number
 }
 
-/** 获取广告系列列表（含近 7 天统计） */
-export function fetchFbCampaigns(accountId: string) {
+/** 获取广告系列列表（accountIds 为空 = 全部授权账户聚合；含近 7 天统计） */
+export function fetchFbCampaigns(accountIds?: string[]) {
   return request.get<FbCampaignListResponse>({
     url: '/api/v1/fb/campaigns',
-    params: { accountId },
-    showErrorMessage: false
+    params: accountIds?.length ? { accountIds: accountIds.join(',') } : {},
+    showErrorMessage: false,
+    timeout: 180000
   })
 }
 
@@ -630,12 +643,13 @@ export function fetchFbAdSets(campaignId: string, accountId: string) {
   })
 }
 
-/** 获取广告账户下全部广告组（账户级聚合，一次调用） */
-export function fetchFbAdSetsByAccount(accountId: string) {
+/** 获取广告账户下全部广告组（accountIds 为空 = 全部授权账户聚合，含归属列） */
+export function fetchFbAdSetsByAccount(accountIds?: string[]) {
   return request.get<FbAdSetListResponse>({
     url: '/api/v1/fb/adsets',
-    params: { accountId },
-    showErrorMessage: false
+    params: accountIds?.length ? { accountIds: accountIds.join(',') } : {},
+    showErrorMessage: false,
+    timeout: 180000
   })
 }
 
@@ -648,11 +662,12 @@ export function fetchFbAds(adsetId: string, accountId: string) {
   })
 }
 
-/** 获取广告账户下全部广告（账户级聚合，一次调用） */
-export function fetchFbAdsByAccount(accountId: string) {
+/** 获取广告账户下全部广告（accountIds 为空 = 全部授权账户聚合，含归属列） */
+export function fetchFbAdsByAccount(accountIds?: string[]) {
   return request.get<FbAdListResponse>({
     url: '/api/v1/fb/ads',
-    params: { accountId },
-    showErrorMessage: false
+    params: accountIds?.length ? { accountIds: accountIds.join(',') } : {},
+    showErrorMessage: false,
+    timeout: 180000
   })
 }

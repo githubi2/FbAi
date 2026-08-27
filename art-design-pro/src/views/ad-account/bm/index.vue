@@ -40,12 +40,10 @@
         :data="data"
         :columns="columns"
         :pagination="pagination"
+        :empty-text="$t('menus.adAccount.bmNoData')"
         @pagination:size-change="handleSizeChange"
         @pagination:current-change="handleCurrentChange"
       />
-
-      <!-- 空状态 -->
-      <ElEmpty v-if="!loading && data.length === 0" :description="$t('menus.adAccount.bmNoData')" />
     </ElCard>
 
     <!-- 备注编辑弹窗 -->
@@ -72,7 +70,7 @@
   import { h, ref, reactive, onMounted, onUnmounted } from 'vue'
   import { useI18n } from 'vue-i18n'
   import { useTable } from '@/hooks/core/useTable'
-  import { ElTag, ElEmpty, ElTooltip, ElButton, ElIcon, ElMessage } from 'element-plus'
+  import { ElTag, ElTooltip, ElButton, ElIcon, ElMessage } from 'element-plus'
   import { Edit } from '@element-plus/icons-vue'
   import type { FbBmItem } from '@/api/facebook'
   import {
