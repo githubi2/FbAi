@@ -49,7 +49,6 @@
             :columns="campaignColumns"
             :pagination="campaignPagination"
             :empty-text="$t('menus.adCampaign.noCampaigns')"
-            height="calc(100% - 70px)"
             @pagination:size-change="campaignSizeChange"
             @pagination:current-change="campaignCurrentChange"
           />
@@ -68,7 +67,6 @@
             :columns="adsetColumns"
             :pagination="adsetPagination"
             :empty-text="$t('menus.adCampaign.noAdSets')"
-            height="calc(100% - 70px)"
             @pagination:size-change="adsetSizeChange"
             @pagination:current-change="adsetCurrentChange"
           />
@@ -87,7 +85,6 @@
             :columns="adColumns"
             :pagination="adPagination"
             :empty-text="$t('menus.adCampaign.noAds')"
-            height="calc(100% - 70px)"
             @pagination:size-change="adSizeChange"
             @pagination:current-change="adCurrentChange"
           />
@@ -337,10 +334,6 @@
 
     :deep(.el-tab-pane) {
       height: 100%;
-    }
-
-    :deep(.custom-pagination) {
-      margin-bottom: 20px;
     }
   }
 </style>
