@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1050,6 +1051,7 @@ func (s *FbService) GetCampaigns(userID uint, tenantID *uint, accountIDs []strin
 }
 
 // mergeCampaignInsights 合并近 7 天统计到系列列表（失败仅记日志，不影响列表）
+// v26 注意：results/cost_per_result 返回 indicator 结构（无数值），数值需从 actions 推导
 func (s *FbService) mergeCampaignInsights(accountID, accessToken string, list []models.FbCampaign) {
 	if len(list) == 0 {
 		return
@@ -1059,7 +1061,7 @@ func (s *FbService) mergeCampaignInsights(accountID, accessToken string, list []
 		map[string]string{
 			"date_preset":  "last_7d",
 			"level":        "campaign",
-			"fields":       "campaign_id,spend,impressions,clicks,ctr,cpc",
+			"fields":       "campaign_id,spend,impressions,clicks,ctr,cpc,cpm,cpp,reach,frequency,results,result_rate,cost_per_result,actions,action_values",
 			"access_token": accessToken,
 			"limit":        "500",
 		},
@@ -1079,13 +1081,33 @@ func (s *FbService) mergeCampaignInsights(accountID, accessToken string, list []
 			if cid == "" {
 				continue
 			}
-			insMap[cid] = &models.FbInsight{
-				Spend:       getString(m, "spend"),
-				Impressions: getString(m, "impressions"),
-				Clicks:      getString(m, "clicks"),
-				CTR:         getString(m, "ctr"),
-				CPC:         getString(m, "cpc"),
+			ins := &models.FbInsight{
+				Spend:         getString(m, "spend"),
+				Impressions:   getString(m, "impressions"),
+				Clicks:        getString(m, "clicks"),
+				CTR:           getString(m, "ctr"),
+				CPC:           getString(m, "cpc"),
+				CPM:           getString(m, "cpm"),
+				CPP:           getString(m, "cpp"),
+				Reach:         getString(m, "reach"),
+				Frequency:     getString(m, "frequency"),
+				ResultRate:    getString(m, "result_rate"),
+				CostPerResult: getString(m, "cost_per_result"),
+				Actions:       []models.FbAction{},
+				ActionValues:  []models.FbAction{},
 			}
+			// actions/action_values 数组（购物/消息/线索细分）
+			ins.Actions = parseFbActions(m["actions"])
+			ins.ActionValues = parseFbActions(m["action_values"])
+			// v26 results 为 indicator 结构 [{indicator:'actions:purchase'}]，数值从 actions 推导
+			if indicator := parseResultsIndicator(m["results"]); indicator != "" {
+				ins.Results = actionValueOf(ins.Actions, indicator)
+			}
+			// 成本兜底：cost_per_result 为 indicator 时用 spend/results 计算
+			if !isNumeric(getString(m, "cost_per_result")) && isNumeric(ins.Spend) && isNumeric(ins.Results) && ins.Results != "0" {
+				ins.CostPerResult = formatMoney(ins.Spend, ins.Results)
+			}
+			insMap[cid] = ins
 		}
 	}
 	for i := range list {
@@ -1093,6 +1115,72 @@ func (s *FbService) mergeCampaignInsights(accountID, accessToken string, list []
 			list[i].Insight = ins
 		}
 	}
+}
+
+// parseFbActions 解析 actions/action_values 数组
+func parseFbActions(raw interface{}) []models.FbAction {
+	out := []models.FbAction{}
+	if arr, ok := raw.([]interface{}); ok {
+		for _, item := range arr {
+			if m, ok := item.(map[string]interface{}); ok {
+				out = append(out, models.FbAction{
+					Type:   getString(m, "action_type"),
+					Value:  getString(m, "value"),
+					Value2: getString(m, "action_value"),
+				})
+			}
+		}
+	}
+	return out
+}
+
+// parseResultsIndicator 提取 results indicator 中的动作类型（如 'actions:purchase' → 'purchase'）
+func parseResultsIndicator(raw interface{}) string {
+	if arr, ok := raw.([]interface{}); ok {
+		for _, item := range arr {
+			if m, ok := item.(map[string]interface{}); ok {
+				ind := getString(m, "indicator")
+				parts := strings.SplitN(ind, ":", 2)
+				if len(parts) == 2 {
+					return parts[1]
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// actionValueOf 从动作细分中取指定类型的数量
+func actionValueOf(actions []models.FbAction, typ string) string {
+	// action_type 可能带前缀（offsite_conversion.fb_pixel_purchase 等），按后缀匹配
+	for _, a := range actions {
+		if a.Type == typ || strings.HasSuffix(a.Type, "."+typ) || strings.HasSuffix(a.Type, "_"+typ) {
+			return a.Value
+		}
+	}
+	for _, a := range actions {
+		if strings.Contains(a.Type, typ) {
+			return a.Value
+		}
+	}
+	return ""
+}
+
+func isNumeric(v string) bool {
+	if v == "" {
+		return false
+	}
+	_, err := strconv.ParseFloat(v, 64)
+	return err == nil
+}
+
+func formatMoney(spend, results string) string {
+	s, _ := strconv.ParseFloat(spend, 64)
+	r, _ := strconv.ParseFloat(results, 64)
+	if r == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.2f", s/r)
 }
 
 // GetAdSetsByAccount 获取广告账户下全部广告组（accountIDs 为空 = 按全部授权账户聚合，含所属系列/账户）

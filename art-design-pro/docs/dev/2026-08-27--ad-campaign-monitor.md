@@ -56,6 +56,12 @@ Token 解析：`fb_ad_accounts_cache.ad_account_id` → `fb_token_id` → `fb_to
    - **服务层并发**：GetCampaigns/GetAdSetsByAccount/GetAdsByAccount 改为 goroutine + WaitGroup + Mutex 聚合（每账户一个 goroutine，insights 同样在 goroutine 内）。
    - **实测**：3 账户全量 campaigns **16.6s（串行 1.5s/请求）→ 2.0s**；adsets 1.1s / ads 1.0s；浏览器 6s 内出数据。推算 30 账户 ≈ 12-18s（≈ 账户数/并发 × 每请求耗时，而非 账户数×间隔）。
    - 环境变量：`FB_RATE_KEY_MS=1000`（每账户请求间隔）、`FB_FETCH_CONCURRENCY=10`（并发上限），写入 .env（不入库）。
+9. **指标列扩展 + FB 式编辑列**（2026-08-27 用户需求，确认方案 A×5）：
+   - **官方文档+实测**（v26.0）：成效分析 API"可获取广告管理工具中几乎所有可用指标"；实测 results/cost_per_result 返回 **indicator 结构**（`[{indicator:'actions:purchase'}]`，无数值）→ 数值从 `actions` 数组按 indicator 推导；`actions/action_values` 提供购物/消息/线索细分（**购物 vs 消息区分方案核心**）；reach/frequency/cpm/cpp 有数据时返回；**roas 与帖子互动字段（post_reactions 等）v26 实测 400 拒绝**（按确认不实现）。
+   - **后端**：`FbInsight` 扩展（cpm/cpp/reach/frequency/results/resultRate/costPerResult/actions/actionValues）+ `FbAction` 模型；insights 请求字段扩展；`parseResultsIndicator`（indicator→动作类型）+ `actionValueOf`（actions 取值）+ 成本兜底（spend/results 计算）。
+   - **前端**：新增列（成效/单次成效费用/成效获得率/购买数/购买金额/消息数/线索数/链接点击/覆盖/频次/CPM/CPP），列定义加 `group`（基础/成效与花费/传播）；新建 `ColumnSettingPanel.vue`（FB"编辑列"同款分组勾选弹窗，**样式对齐本项目**：ElDialog+分组卡片+实时生效+重置）；ArtTableHeader 传入 columnChecks 且 layout 移除原生 columns 按钮，header right slot 放"编辑列"按钮。
+   - **勾选联动**（同坑）：computed 传给子组件 props 时需返回 `.value`（computed 不自动解包 ref），否则报 "Expected Array, got Object"。
+   - 实测：弹窗 3 分组渲染 ✅；取消"购买数"→ 表格列即时隐藏 ✅；截图确认。
 
 ### 官方文档状态依据（2026-08-27 实抓 v26.0 广告组字段表）
 

@@ -495,6 +495,13 @@
       "noCampaigns": "No campaign data",
       "noAdSets": "No ad set data",
       "noAds": "No ad data",
+      "columnSetting": "Edit Columns",
+      "selectedItems": "{count} selected",
+      "groups": {
+        "basic": "Basic",
+        "results": "Results & Spend",
+        "reach": "Reach"
+      },
       "campaignTab": "Campaigns",
       "adSetTab": "Ad Sets",
       "adTab": "Ads",
@@ -522,7 +529,19 @@
         "effectiveStatus": "Effective Status",
         "campaignName": "Campaign",
         "adsetName": "Ad Set",
-        "account": "Account"
+        "account": "Account",
+        "results": "Results",
+        "costPerResult": "Cost Per Result",
+        "resultRate": "Result Rate",
+        "purchases": "Purchases",
+        "purchaseValue": "Purchase Value",
+        "messages": "Messages",
+        "leads": "Leads",
+        "linkClicks": "Link Clicks",
+        "reach": "Reach",
+        "frequency": "Frequency",
+        "cpm": "CPM",
+        "cpp": "CPP"
       },
       "selectedAccounts": "Selected Accounts",
       "status": {

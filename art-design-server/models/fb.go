@@ -171,11 +171,27 @@ type FbPageListResponse struct {
 
 // FbInsight 广告数据统计（近 7 天）
 type FbInsight struct {
-	Spend       string `json:"spend"`
-	Impressions string `json:"impressions"`
-	Clicks      string `json:"clicks"`
-	CTR         string `json:"ctr"`
-	CPC         string `json:"cpc"`
+	Spend         string     `json:"spend"`
+	Impressions   string     `json:"impressions"`
+	Clicks        string     `json:"clicks"`
+	CTR           string     `json:"ctr"`
+	CPC           string     `json:"cpc"`
+	CPM           string     `json:"cpm"`
+	CPP           string     `json:"cpp"`
+	Reach         string     `json:"reach"`
+	Frequency     string     `json:"frequency"`
+	Results       string     `json:"results"`       // 成效数（从 actions 按优化目标推导）
+	ResultRate    string     `json:"resultRate"`    // 成效获得率
+	CostPerResult string     `json:"costPerResult"` // 单次成效费用
+	Actions       []FbAction `json:"actions"`       // 动作细分（购物/消息/线索等）
+	ActionValues  []FbAction `json:"actionValues"`  // 动作金额（购买金额等）
+}
+
+// FbAction 成效分析动作细分项
+type FbAction struct {
+	Type   string `json:"type"`   // action_type：purchase / messaging / lead / link_click ...
+	Value  string `json:"value"`  // 数量
+	Value2 string `json:"value2"` // 金额（action_values 时）
 }
 
 // FbCampaign 广告系列

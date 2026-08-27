@@ -537,6 +537,16 @@ export function fetchFbCreatePixel(adAccountId: string, name: string) {
 
 // ==================== 广告投放（只读监控，v26.0） ====================
 
+/** 广告成效细分动作 */
+export interface FbAction {
+  /** action_type：purchase / messaging / lead / link_click ... */
+  type: string
+  /** 数量 */
+  value: string
+  /** 金额（action_values 时） */
+  value2: string
+}
+
 /** 广告数据统计（近 7 天） */
 export interface FbInsight {
   spend: string
@@ -544,6 +554,20 @@ export interface FbInsight {
   clicks: string
   ctr: string
   cpc: string
+  cpm: string
+  cpp: string
+  reach: string
+  frequency: string
+  /** 成效数（从 actions 按优化目标推导） */
+  results: string
+  /** 成效获得率 */
+  resultRate: string
+  /** 单次成效费用 */
+  costPerResult: string
+  /** 动作细分（购物/消息/线索等） */
+  actions: FbAction[]
+  /** 动作金额（购买金额等） */
+  actionValues: FbAction[]
 }
 
 /** 广告系列 */

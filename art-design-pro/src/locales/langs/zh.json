@@ -495,6 +495,13 @@
       "noCampaigns": "暂无广告系列数据",
       "noAdSets": "暂无广告组数据",
       "noAds": "暂无广告数据",
+      "columnSetting": "编辑列",
+      "selectedItems": "已选 {count} 项",
+      "groups": {
+        "basic": "基础",
+        "results": "成效与花费",
+        "reach": "传播"
+      },
       "campaignTab": "广告系列",
       "adSetTab": "广告组",
       "adTab": "广告",
@@ -522,7 +529,19 @@
         "effectiveStatus": "生效状态",
         "campaignName": "所属系列",
         "adsetName": "所属广告组",
-        "account": "账户"
+        "account": "账户",
+        "results": "成效",
+        "costPerResult": "单次成效费用",
+        "resultRate": "成效获得率",
+        "purchases": "购买数",
+        "purchaseValue": "购买金额",
+        "messages": "消息数",
+        "leads": "线索数",
+        "linkClicks": "链接点击",
+        "reach": "覆盖",
+        "frequency": "频次",
+        "cpm": "CPM",
+        "cpp": "CPP"
       },
       "selectedAccounts": "已选账户",
       "status": {
