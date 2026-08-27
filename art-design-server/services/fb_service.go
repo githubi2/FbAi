@@ -995,47 +995,56 @@ func (s *FbService) GetCampaigns(userID uint, tenantID *uint, accountIDs []strin
 	}
 
 	list := []models.FbCampaign{}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for _, acc := range creds {
-		resp, err := s.fbGet(
-			fmt.Sprintf("/%s/%s/campaigns", s.graphVer, acc.ActID),
-			map[string]string{
-				"fields":       "id,name,status,effective_status,objective,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,created_time,updated_time",
-				"access_token": acc.Token,
-				"limit":        "100",
-			},
-		)
-		if err != nil {
-			log.Printf("[FB-CAMPAIGN] 获取系列失败 (act=%s): %v", acc.ActID, err)
-			continue
-		}
-		items := []models.FbCampaign{}
-		if data, ok := resp["data"].([]interface{}); ok {
-			for _, item := range data {
-				if m, ok := item.(map[string]interface{}); ok {
-					items = append(items, models.FbCampaign{
-						ID:              getString(m, "id"),
-						Name:            getString(m, "name"),
-						Status:          getString(m, "status"),
-						EffectiveStatus: getString(m, "effective_status"),
-						Objective:       getString(m, "objective"),
-						DailyBudget:     getString(m, "daily_budget"),
-						LifetimeBudget:  getString(m, "lifetime_budget"),
-						BidStrategy:     getString(m, "bid_strategy"),
-						StartTime:       getString(m, "start_time"),
-						StopTime:        getString(m, "stop_time"),
-						CreatedTime:     getString(m, "created_time"),
-						UpdatedTime:     getString(m, "updated_time"),
-						AccountID:       acc.ActID,
-						AccountName:     acc.Name,
-						AccountBM:       acc.Bm,
-					})
+		wg.Add(1)
+		go func(acc fbAccountCred) {
+			defer wg.Done()
+			resp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/campaigns", s.graphVer, acc.ActID),
+				map[string]string{
+					"fields":       "id,name,status,effective_status,objective,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,created_time,updated_time",
+					"access_token": acc.Token,
+					"limit":        "100",
+				},
+			)
+			if err != nil {
+				log.Printf("[FB-CAMPAIGN] 获取系列失败 (act=%s): %v", acc.ActID, err)
+				return
+			}
+			items := []models.FbCampaign{}
+			if data, ok := resp["data"].([]interface{}); ok {
+				for _, item := range data {
+					if m, ok := item.(map[string]interface{}); ok {
+						items = append(items, models.FbCampaign{
+							ID:              getString(m, "id"),
+							Name:            getString(m, "name"),
+							Status:          getString(m, "status"),
+							EffectiveStatus: getString(m, "effective_status"),
+							Objective:       getString(m, "objective"),
+							DailyBudget:     getString(m, "daily_budget"),
+							LifetimeBudget:  getString(m, "lifetime_budget"),
+							BidStrategy:     getString(m, "bid_strategy"),
+							StartTime:       getString(m, "start_time"),
+							StopTime:        getString(m, "stop_time"),
+							CreatedTime:     getString(m, "created_time"),
+							UpdatedTime:     getString(m, "updated_time"),
+							AccountID:       acc.ActID,
+							AccountName:     acc.Name,
+							AccountBM:       acc.Bm,
+						})
+					}
 				}
 			}
-		}
-		// 近 7 天统计：每账户 1 次 insights 调用（level=campaign 汇总全部系列）
-		s.mergeCampaignInsights(acc.ActID, acc.Token, items)
-		list = append(list, items...)
+			// 近 7 天统计：每账户 1 次 insights 调用（level=campaign 汇总全部系列）
+			s.mergeCampaignInsights(acc.ActID, acc.Token, items)
+			mu.Lock()
+			list = append(list, items...)
+			mu.Unlock()
+		}(acc)
 	}
+	wg.Wait()
 
 	return &models.FbCampaignListResponse{List: list, Total: len(list)}, nil
 }
@@ -1097,47 +1106,58 @@ func (s *FbService) GetAdSetsByAccount(userID uint, tenantID *uint, accountIDs [
 		return &models.FbAdSetListResponse{List: []models.FbAdSet{}, Total: 0}, nil
 	}
 	list := []models.FbAdSet{}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for _, acc := range creds {
-		resp, err := s.fbGet(
-			fmt.Sprintf("/%s/%s/adsets", s.graphVer, acc.ActID),
-			map[string]string{
-				"fields":       "id,name,status,effective_status,optimization_goal,billing_event,daily_budget,lifetime_budget,start_time,stop_time,created_time,campaign{id,name}",
-				"access_token": acc.Token,
-				"limit":        "100",
-			},
-		)
-		if err != nil {
-			log.Printf("[FB-ADSET] 获取广告组失败 (act=%s): %v", acc.ActID, err)
-			continue
-		}
-		if data, ok := resp["data"].([]interface{}); ok {
-			for _, item := range data {
-				if m, ok := item.(map[string]interface{}); ok {
-					campaignName := ""
-					if camp, ok := m["campaign"].(map[string]interface{}); ok {
-						campaignName = getString(camp, "name")
+		wg.Add(1)
+		go func(acc fbAccountCred) {
+			defer wg.Done()
+			resp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/adsets", s.graphVer, acc.ActID),
+				map[string]string{
+					"fields":       "id,name,status,effective_status,optimization_goal,billing_event,daily_budget,lifetime_budget,start_time,stop_time,created_time,campaign{id,name}",
+					"access_token": acc.Token,
+					"limit":        "100",
+				},
+			)
+			if err != nil {
+				log.Printf("[FB-ADSET] 获取广告组失败 (act=%s): %v", acc.ActID, err)
+				return
+			}
+			items := []models.FbAdSet{}
+			if data, ok := resp["data"].([]interface{}); ok {
+				for _, item := range data {
+					if m, ok := item.(map[string]interface{}); ok {
+						campaignName := ""
+						if camp, ok := m["campaign"].(map[string]interface{}); ok {
+							campaignName = getString(camp, "name")
+						}
+						items = append(items, models.FbAdSet{
+							ID:               getString(m, "id"),
+							Name:             getString(m, "name"),
+							Status:           getString(m, "status"),
+							EffectiveStatus:  getString(m, "effective_status"),
+							OptimizationGoal: getString(m, "optimization_goal"),
+							BillingEvent:     getString(m, "billing_event"),
+							DailyBudget:      getString(m, "daily_budget"),
+							LifetimeBudget:   getString(m, "lifetime_budget"),
+							StartTime:        getString(m, "start_time"),
+							StopTime:         getString(m, "stop_time"),
+							CreatedTime:      getString(m, "created_time"),
+							CampaignName:     campaignName, // 所属系列
+							AccountID:        acc.ActID,
+							AccountName:      acc.Name,
+							AccountBM:        acc.Bm,
+						})
 					}
-					list = append(list, models.FbAdSet{
-						ID:               getString(m, "id"),
-						Name:             getString(m, "name"),
-						Status:           getString(m, "status"),
-						EffectiveStatus:  getString(m, "effective_status"),
-						OptimizationGoal: getString(m, "optimization_goal"),
-						BillingEvent:     getString(m, "billing_event"),
-						DailyBudget:      getString(m, "daily_budget"),
-						LifetimeBudget:   getString(m, "lifetime_budget"),
-						StartTime:        getString(m, "start_time"),
-						StopTime:         getString(m, "stop_time"),
-						CreatedTime:      getString(m, "created_time"),
-						CampaignName:     campaignName, // 所属系列
-						AccountID:        acc.ActID,
-						AccountName:      acc.Name,
-						AccountBM:        acc.Bm,
-					})
 				}
 			}
-		}
+			mu.Lock()
+			list = append(list, items...)
+			mu.Unlock()
+		}(acc)
 	}
+	wg.Wait()
 	return &models.FbAdSetListResponse{List: list, Total: len(list)}, nil
 }
 
@@ -1152,53 +1172,64 @@ func (s *FbService) GetAdsByAccount(userID uint, tenantID *uint, accountIDs []st
 		return &models.FbAdListResponse{List: []models.FbAd{}, Total: 0}, nil
 	}
 	list := []models.FbAd{}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for _, acc := range creds {
-		resp, err := s.fbGet(
-			fmt.Sprintf("/%s/%s/ads", s.graphVer, acc.ActID),
-			map[string]string{
-				"fields":       "id,name,status,effective_status,campaign{id,name},adset{id,name},creative{id,name},created_time,updated_time",
-				"access_token": acc.Token,
-				"limit":        "100",
-			},
-		)
-		if err != nil {
-			log.Printf("[FB-AD] 获取广告失败 (act=%s): %v", acc.ActID, err)
-			continue
-		}
-		if data, ok := resp["data"].([]interface{}); ok {
-			for _, item := range data {
-				if m, ok := item.(map[string]interface{}); ok {
-					campaignName, adsetName := "", ""
-					if camp, ok := m["campaign"].(map[string]interface{}); ok {
-						campaignName = getString(camp, "name")
+		wg.Add(1)
+		go func(acc fbAccountCred) {
+			defer wg.Done()
+			resp, err := s.fbGet(
+				fmt.Sprintf("/%s/%s/ads", s.graphVer, acc.ActID),
+				map[string]string{
+					"fields":       "id,name,status,effective_status,campaign{id,name},adset{id,name},creative{id,name},created_time,updated_time",
+					"access_token": acc.Token,
+					"limit":        "100",
+				},
+			)
+			if err != nil {
+				log.Printf("[FB-AD] 获取广告失败 (act=%s): %v", acc.ActID, err)
+				return
+			}
+			items := []models.FbAd{}
+			if data, ok := resp["data"].([]interface{}); ok {
+				for _, item := range data {
+					if m, ok := item.(map[string]interface{}); ok {
+						campaignName, adsetName := "", ""
+						if camp, ok := m["campaign"].(map[string]interface{}); ok {
+							campaignName = getString(camp, "name")
+						}
+						if as, ok := m["adset"].(map[string]interface{}); ok {
+							adsetName = getString(as, "name")
+						}
+						creativeID, creativeName := "", ""
+						if cr, ok := m["creative"].(map[string]interface{}); ok {
+							creativeID = getString(cr, "id")
+							creativeName = getString(cr, "name")
+						}
+						items = append(items, models.FbAd{
+							ID:              getString(m, "id"),
+							Name:            getString(m, "name"),
+							Status:          getString(m, "status"),
+							EffectiveStatus: getString(m, "effective_status"),
+							CreativeID:      creativeID,
+							CreativeName:    creativeName,
+							CreatedTime:     getString(m, "created_time"),
+							UpdatedTime:     getString(m, "updated_time"),
+							CampaignName:    campaignName, // 所属系列
+							AdsetName:       adsetName,    // 所属广告组
+							AccountID:       acc.ActID,
+							AccountName:     acc.Name,
+							AccountBM:       acc.Bm,
+						})
 					}
-					if as, ok := m["adset"].(map[string]interface{}); ok {
-						adsetName = getString(as, "name")
-					}
-					creativeID, creativeName := "", ""
-					if cr, ok := m["creative"].(map[string]interface{}); ok {
-						creativeID = getString(cr, "id")
-						creativeName = getString(cr, "name")
-					}
-					list = append(list, models.FbAd{
-						ID:              getString(m, "id"),
-						Name:            getString(m, "name"),
-						Status:          getString(m, "status"),
-						EffectiveStatus: getString(m, "effective_status"),
-						CreativeID:      creativeID,
-						CreativeName:    creativeName,
-						CreatedTime:     getString(m, "created_time"),
-						UpdatedTime:     getString(m, "updated_time"),
-						CampaignName:    campaignName, // 所属系列
-						AdsetName:       adsetName,    // 所属广告组
-						AccountID:       acc.ActID,
-						AccountName:     acc.Name,
-						AccountBM:       acc.Bm,
-					})
 				}
 			}
-		}
+			mu.Lock()
+			list = append(list, items...)
+			mu.Unlock()
+		}(acc)
 	}
+	wg.Wait()
 	return &models.FbAdListResponse{List: list, Total: len(list)}, nil
 }
 

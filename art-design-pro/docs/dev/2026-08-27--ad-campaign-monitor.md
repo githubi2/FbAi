@@ -50,6 +50,12 @@ Token 解析：`fb_ad_accounts_cache.ad_account_id` → `fb_token_id` → `fb_to
    - **限速雪崩修复**：多账户全量时每账户 2 次 FB 调用，4s 限速 + 前端 15s 超时 → 请求积压雪崩（单请求 70s+）。修复：`FB_RATE_LIMIT_MS=1500`（.env，限速器原生支持）、axios 3 个聚合端点 `timeout: 180000`、adset/ad 表格 `immediate: false`（切 tab 才加载，避免 3 端点并发排队）。
    
    实测：全量 campaigns 16.6s 返回（3 账户 ×（campaigns+insights）× 1.5s + FB 往返）；浏览器全流程验证通过（默认全量 2 条 + 账户列 + 多选筛选空态单图标 + 重置回全量）。
+8. **多账户并发拉取（几十个账户提速）**（2026-08-27 用户需求）：
+   - **官方文档依据**（实抓 Graph API 流量限制 + 广告管理 BUC 限速）：Marketing API 限额按 **应用级小时配额**（标准级别 `600 + 400×活跃广告数` 次/小时，v26 起响应头用 `X-Business-Use-Case`；旧 `X-Ad-Account-Usage` 按广告账户计数）——不同广告账户的调用**相互独立**，跨账户并发安全。
+   - **限速器重构**（`fb_rate_limiter.go`）：单队列全局 4s/1.5s 串行 → **per-账户（act 维度）限速**（同账户间隔 `FB_RATE_KEY_MS` 默认 1000ms + 不同账户并行）+ **全局并发上限**（`FB_FETCH_CONCURRENCY` 默认 10）。`Do(ctx, endpoint, fn)` 签名不变、自动从 endpoint 提取 act 为 key，fbGet/OAuth 等调用点零改动；Redis WaitFn 兼容保留。
+   - **服务层并发**：GetCampaigns/GetAdSetsByAccount/GetAdsByAccount 改为 goroutine + WaitGroup + Mutex 聚合（每账户一个 goroutine，insights 同样在 goroutine 内）。
+   - **实测**：3 账户全量 campaigns **16.6s（串行 1.5s/请求）→ 2.0s**；adsets 1.1s / ads 1.0s；浏览器 6s 内出数据。推算 30 账户 ≈ 12-18s（≈ 账户数/并发 × 每请求耗时，而非 账户数×间隔）。
+   - 环境变量：`FB_RATE_KEY_MS=1000`（每账户请求间隔）、`FB_FETCH_CONCURRENCY=10`（并发上限），写入 .env（不入库）。
 
 ### 官方文档状态依据（2026-08-27 实抓 v26.0 广告组字段表）
 

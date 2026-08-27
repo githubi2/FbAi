@@ -107,7 +107,7 @@ func TryUpgradeToRedis() {
 		return
 	}
 
-	interval := defaultFbRateLimitInterval()
+	interval := defaultFbRateKeyInterval()
 
 	waitFn, cleanup, err := NewRedisWaitFn(redisURL, interval)
 	if err != nil {

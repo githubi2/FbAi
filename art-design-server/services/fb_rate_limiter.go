@@ -5,114 +5,124 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
-
-// fbRateLimitRequest 限速队列中的请求
-type fbRateLimitRequest struct {
-	endpoint string
-	fn       func() (interface{}, error)
-	resultCh chan fbRateLimitResult
-}
-
-type fbRateLimitResult struct {
-	data interface{}
-	err  error
-}
 
 // WaitFn 外部等待策略（如 Redis 分布式限速）
 // endpoint: 请求端点（用于日志）
 // 返回: 需要等待的时长，0 表示无需等待
 type WaitFn func(ctx context.Context, endpoint string) time.Duration
 
-// FbRateLimiter Facebook API 请求限速器
-// 使用单 goroutine + channel 实现串行队列
-// 默认使用本地内存计时，可选注入 WaitFn 实现分布式限速（如 Redis）
+// FbRateLimiter Facebook API 请求限速器（多账户并发安全）
+// 设计（依据官方 BUC 限速文档：限额按应用/广告账户维度，跨账户调用相互独立）：
+//   - 按广告账户（act_xxx）独立限速：同一账户串行且间隔 keyInterval，不同账户并行
+//   - 全局并发上限 concurrency：防止瞬时请求过多触发平台级节流
+//
+// 默认 keyInterval=1s/账户，并发=10（可通过 FB_RATE_KEY_MS / FB_FETCH_CONCURRENCY 覆盖）
 type FbRateLimiter struct {
-	minInterval time.Duration
-	requests    chan *fbRateLimitRequest
+	keyInterval time.Duration
+	concurrency int
 	waitFn      WaitFn // nil = 使用本地计时
+
+	mu         sync.Mutex
+	keyTimers  map[string]time.Time // key → 上次请求时间
+	lastGlobal time.Time            // 全局兜底计时（waitFn 为空且无 key 时）
+	sem        chan struct{}        // 全局并发信号量
 }
 
-// DefaultFbRateLimiter 全局 FB 限速器实例（默认内存模式，间隔 4 秒）
-var DefaultFbRateLimiter = newFbRateLimiter(defaultFbRateLimitInterval(), nil)
+// DefaultFbRateLimiter 全局 FB 限速器实例
+var DefaultFbRateLimiter = newFbRateLimiter(defaultFbRateKeyInterval(), defaultFbFetchConcurrency(), nil)
 
-func defaultFbRateLimitInterval() time.Duration {
-	if v := os.Getenv("FB_RATE_LIMIT_MS"); v != "" {
+func defaultFbRateKeyInterval() time.Duration {
+	if v := os.Getenv("FB_RATE_KEY_MS"); v != "" {
 		if ms, err := strconv.Atoi(v); err == nil && ms > 0 {
 			return time.Duration(ms) * time.Millisecond
 		}
 	}
-	return 4 * time.Second
+	return 1 * time.Second
 }
 
-func newFbRateLimiter(minInterval time.Duration, waitFn WaitFn) *FbRateLimiter {
-	rl := &FbRateLimiter{
-		minInterval: minInterval,
-		requests:    make(chan *fbRateLimitRequest, 128),
-		waitFn:      waitFn,
+func defaultFbFetchConcurrency() int {
+	if v := os.Getenv("FB_FETCH_CONCURRENCY"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 50 {
+			return n
+		}
 	}
-	go rl.worker()
-	return rl
+	return 10
+}
+
+func newFbRateLimiter(keyInterval time.Duration, concurrency int, waitFn WaitFn) *FbRateLimiter {
+	return &FbRateLimiter{
+		keyInterval: keyInterval,
+		concurrency: concurrency,
+		waitFn:      waitFn,
+		keyTimers:   make(map[string]time.Time),
+		sem:         make(chan struct{}, concurrency),
+	}
 }
 
 // SetWaitFn 设置外部等待策略（如 Redis 分布式限速）
-// 必须在任何请求发出之前调用
 func (rl *FbRateLimiter) SetWaitFn(fn WaitFn) {
 	rl.waitFn = fn
 }
 
-// Do 将请求加入限速队列，阻塞等待执行完毕后返回结果
+// rateLimitKey 从 endpoint 提取限速 key（广告账户 act_xxx；无则用 global）
+// endpoint 形如: /v26.0/act_2947189472297239/campaigns
+func rateLimitKey(endpoint string) string {
+	parts := strings.Split(strings.TrimPrefix(endpoint, "/"), "/")
+	if len(parts) >= 3 && strings.HasPrefix(parts[1], "act_") {
+		return parts[1]
+	}
+	return "global"
+}
+
+// Do 将请求加入限速，阻塞等待后执行 fn（同账户串行限速 + 全局并发上限）
 func (rl *FbRateLimiter) Do(
 	ctx context.Context,
 	endpoint string,
 	fn func() (interface{}, error),
 ) (interface{}, error) {
-	resultCh := make(chan fbRateLimitResult, 1)
-	req := &fbRateLimitRequest{
-		endpoint: endpoint,
-		fn:       fn,
-		resultCh: resultCh,
-	}
+	key := rateLimitKey(endpoint)
 
+	// 1. 全局并发槽
 	select {
-	case rl.requests <- req:
+	case rl.sem <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	defer func() { <-rl.sem }()
 
-	select {
-	case res := <-resultCh:
-		return res.data, res.err
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-// worker 串行处理队列中的请求
-func (rl *FbRateLimiter) worker() {
-	var lastRequestAt time.Time
-
-	for req := range rl.requests {
-		// 如果有外部等待策略（如 Redis），使用它
-		if rl.waitFn != nil {
-			waitDuration := rl.waitFn(context.Background(), req.endpoint)
-			if waitDuration > 0 {
-				log.Printf("[FbRateLimiter] \"%s\" 排队等待 %v", req.endpoint, waitDuration.Round(time.Millisecond))
-				time.Sleep(waitDuration)
-			}
-		} else {
-			// 默认本地计时
-			elapsed := time.Since(lastRequestAt)
-			if elapsed < rl.minInterval {
-				waitTime := rl.minInterval - elapsed
-				log.Printf("[FbRateLimiter] \"%s\" 排队等待 %v", req.endpoint, waitTime.Round(time.Millisecond))
-				time.Sleep(waitTime)
+	// 2. 限速等待（外部策略优先，否则按 key 间隔）
+	var wait time.Duration
+	rl.mu.Lock()
+	last, ok := rl.keyTimers[key]
+	rl.mu.Unlock()
+	if rl.waitFn != nil {
+		wait = rl.waitFn(ctx, endpoint)
+	} else {
+		if ok {
+			remain := rl.keyInterval - time.Since(last)
+			if remain > 0 {
+				wait = remain
 			}
 		}
-
-		lastRequestAt = time.Now()
-		data, err := req.fn()
-		req.resultCh <- fbRateLimitResult{data: data, err: err}
 	}
+	if wait > 0 {
+		log.Printf("[FbRateLimiter] \"%s\" 排队等待 %v (key=%s)", endpoint, wait.Round(time.Millisecond), key)
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	// 3. 记录时间并执行
+	rl.mu.Lock()
+	rl.keyTimers[key] = time.Now()
+	rl.lastGlobal = time.Now()
+	rl.mu.Unlock()
+
+	return fn()
 }
